@@ -214,17 +214,17 @@ const Confetti = {
 
 // --- GEOMETRY ENGINE ---
 const Geo = {
-    // Треки для стрелок (координаты от центра ячейки)
+    // Треки для стрелок (координаты от центра ячейки) - ПРЯМЫЕ ЛИНИИ
     getTrackForDirection(dir, cellSize) {
         const half = cellSize / 2;
         const long = cellSize * 10; // Очень длинная стрелка для анимации
         
         switch(dir) {
-            case 'R': return [[5, half], [cellSize-10, half], [cellSize-10, half+20], [long, half+20]];
-            case 'L': return [[cellSize-5, half], [10, half], [10, half-20], [-long, half-20]];
-            case 'U': return [[half, cellSize-5], [half, 10], [half-20, 10], [half-20, -long]];
-            case 'D': return [[half, 5], [half, cellSize-10], [half+20, cellSize-10], [half+20, long]];
-            default: return [[5, half], [cellSize-5, half], [cellSize-5, half+20], [long, half+20]];
+            case 'R': return [[5, half], [long, half]]; // Прямая линия направо
+            case 'L': return [[cellSize-5, half], [-long, half]]; // Прямая линия налево
+            case 'U': return [[half, cellSize-5], [half, -long]]; // Прямая линия вверх
+            case 'D': return [[half, 5], [half, long]]; // Прямая линия вниз
+            default: return [[5, half], [long, half]];
         }
     },
     
@@ -244,6 +244,24 @@ const Geo = {
     },
     
     getSegmentPath(points, distStart, distEnd) {
+        // Для двухточечных линий (прямых) упрощаем расчет
+        if(points.length === 2) {
+            const dx = points[1][0] - points[0][0];
+            const dy = points[1][1] - points[0][1];
+            const totalLen = Math.hypot(dx, dy);
+            const ratioStart = distStart / totalLen;
+            const ratioEnd = distEnd / totalLen;
+            
+            const x1 = points[0][0] + dx * ratioStart;
+            const y1 = points[0][1] + dy * ratioStart;
+            const x2 = points[0][0] + dx * ratioEnd;
+            const y2 = points[0][1] + dy * ratioEnd;
+            
+            const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+            return { d: `M ${x1} ${y1} L ${x2} ${y2}`, head: { x: x2, y: y2, angle: angle } };
+        }
+        
+        // Старая логика для изогнутых линий (оставляем на всякий случай)
         let d = "", currentDist = 0;
         let pStart = this.getPointAtDist(points, Math.max(0, distStart));
         d += `M ${pStart.x} ${pStart.y}`;
@@ -593,7 +611,7 @@ const App = {
         const line = el.querySelector('.p-line');
         const head = el.querySelector('.p-head');
         const track = Geo.getTrackForDirection(a.dir, arrowSize);
-        const duration = hit ? 400 : 600; 
+        const duration = hit ? 300 : 400; // Укоротили длительность для более резкого движения
         
         if(!hit) { this.playAudio('win'); this.vibrate('win'); }
         let startTime = null;
@@ -605,22 +623,23 @@ const App = {
 
             let distFactor;
             if (hit) {
-                if (p < 0.4) distFactor = (p / 0.4) * arrowSize * 0.2; 
-                else {
-                    if(!this.hasHitSound && p >= 0.4) {
-                        this.hasHitSound = true;
-                        this.playAudio('err'); 
-                        this.vibrate('err');
-                        el.classList.add('error-arr');
-                        document.querySelector('.board-zone').classList.add('error-shake');
-                        setTimeout(() => {
-                            document.querySelector('.board-zone').classList.remove('error-shake');
-                            el.classList.remove('error-arr');
-                        }, 500);
-                    }
-                    distFactor = arrowSize * 0.2 * (1 - ((p - 0.4) / 0.6)); 
+                // Для столкновения - короткое быстрое движение
+                distFactor = p * arrowSize * 0.5; // Увеличил множитель для более резкого движения
+                if(p >= 0.4 && !this.hasHitSound) {
+                    this.hasHitSound = true;
+                    this.playAudio('err'); 
+                    this.vibrate('err');
+                    el.classList.add('error-arr');
+                    document.querySelector('.board-zone').classList.add('error-shake');
+                    setTimeout(() => {
+                        document.querySelector('.board-zone').classList.remove('error-shake');
+                        el.classList.remove('error-arr');
+                    }, 500);
                 }
-            } else distFactor = (p * p) * arrowSize * 8; 
+            } else {
+                // Для успешного движения - линейное без ускорения
+                distFactor = p * arrowSize * 10; // Линейное движение, умноженное на большой коэффициент
+            }
 
             const currentHeadDist = arrowSize * 0.4 + distFactor;
             const currentTailDist = currentHeadDist - arrowSize * 0.4;
