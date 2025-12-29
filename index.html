@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Arrows Pro Ultra v19 Validated</title>
     <style>
-        :root { --c-blue: #003366; --c-bg: #f4f6f9; --c-gray: #e0e0e0; --c-red: #ff4d4d; --c-green: #2ecc71; }
+        :root { --c-blue: #003366; --c-bg: #f4f6f9; --c-gray: #e0e0e0; --c-red: #ff4d4d; --c-green: #2ecc71; --c-gold: #FFD700; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; margin: 0; padding: 0; }
         body { background: var(--c-bg); font-family: -apple-system, sans-serif; overflow: hidden; height: 100vh; display: flex; justify-content: center; }
         #app { width: 100%; max-width: 500px; height: 100%; position: relative; display: flex; flex-direction: column; }
@@ -14,8 +14,11 @@
         .screen.active { display: flex; }
 
         .top-ui { padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; min-height: 70px; z-index: 100; }
+        .top-left-group { display: flex; align-items: center; gap: 10px; }
         .lives-pill { background: white; padding: 8px 15px; border-radius: 25px; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); cursor: pointer; transition: transform 0.1s; }
         .lives-pill:active { transform: scale(0.95); }
+        .coins-pill { background: white; padding: 8px 15px; border-radius: 25px; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .coins-icon { color: var(--c-gold); font-weight: bold; }
 
         .board-zone { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px; transition: 0.2s; }
         
@@ -53,7 +56,8 @@
         /* UI */
         #scr-home { align-items: center; justify-content: center; }
         .logo { font-size: 4rem; font-weight: 900; color: var(--c-blue); margin-bottom: 5px; }
-        .play-btn { width: 100px; height: 100px; background: var(--c-blue); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 20px rgba(0,51,102,0.2); cursor: pointer; }
+        .play-btn { width: 100px; height: 100px; background: var(--c-blue); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 20px rgba(0,51,102,0.2); cursor: pointer; margin-bottom: 20px; }
+        .stats-row { display: flex; gap: 10px; margin-top: 10px; }
         
         .nav-bar { position: absolute; bottom: 0; width: 100%; height: 75px; background: white; display: flex; justify-content: space-around; align-items: center; z-index: 1000; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); }
         .nav-icon { opacity: 0.3; color: var(--c-blue); cursor: pointer; }
@@ -77,8 +81,9 @@
         #scr-win { align-items: center; justify-content: center; text-align: center; background: rgba(255,255,255,0.95); backdrop-filter: blur(5px); z-index: 1500; overflow: hidden; }
         #confetti-canvas { position: absolute; inset: 0; pointer-events: none; width: 100%; height: 100%; z-index: 1; }
         .win-content { position: relative; z-index: 10; display: flex; flex-direction: column; align-items: center; }
-        .win-title { font-size: 3.5rem; font-weight: 900; color: var(--c-blue); margin-bottom: 40px; transform: scale(0); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); text-shadow: 0 2px 10px rgba(0,51,102,0.1); }
+        .win-title { font-size: 3.5rem; font-weight: 900; color: var(--c-blue); margin-bottom: 20px; transform: scale(0); transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); text-shadow: 0 2px 10px rgba(0,51,102,0.1); }
         .win-title.show { transform: scale(1); }
+        .coins-earned { font-size: 1.5rem; color: var(--c-gold); margin: 10px 0; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 8px; }
         
         .btn-row { display: flex; gap: 20px; margin-top: 20px; }
         .big-btn { padding: 15px 30px; border-radius: 15px; border: none; font-size: 1.2rem; font-weight: bold; cursor: pointer; box-shadow: 0 8px 20px rgba(0,0,0,0.1); transition: transform 0.1s; }
@@ -87,15 +92,64 @@
         .btn-next { background: var(--c-blue); color: white; box-shadow: 0 8px 20px rgba(0,51,102,0.25); }
 
         .grid-line { position: absolute; background: rgba(0, 51, 102, 0.05); z-index: 1; }
+        
+        /* STATS & LEADERBOARD */
+        #scr-stats, #scr-shop { padding: 20px; overflow-y: auto; }
+        .stat-card { background: white; margin: 10px 0; padding: 20px; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .stat-row { display: flex; justify-content: space-between; margin: 8px 0; }
+        .stat-label { color: #666; }
+        .stat-value { font-weight: bold; color: var(--c-blue); }
+        
+        .leaderboard { margin-top: 20px; }
+        .leader-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-bottom: 1px solid #eee; }
+        .leader-rank { width: 30px; text-align: center; font-weight: bold; color: var(--c-blue); }
+        .leader-name { flex: 1; margin: 0 15px; }
+        .leader-levels { font-weight: bold; color: var(--c-gold); }
+        .leader-you { background: rgba(0, 51, 102, 0.05); border-radius: 10px; }
+        
+        .shop-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; padding: 20px 0; }
+        .shop-item { background: white; border-radius: 15px; padding: 20px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .shop-icon { font-size: 2.5rem; margin-bottom: 10px; }
+        .shop-price { color: var(--c-gold); font-weight: bold; margin: 10px 0; }
+        .shop-coming { color: #999; font-style: italic; margin-top: 10px; font-size: 0.9rem; }
+        
+        .nickname-display { margin: 10px 0; color: var(--c-blue); font-weight: bold; }
+        .nickname-input { width: 100%; padding: 12px; border: 2px solid var(--c-blue); border-radius: 10px; font-size: 1rem; margin: 10px 0; text-align: center; }
+        .nickname-btn { background: var(--c-blue); color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        
+        .coins-animation {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2rem;
+            color: var(--c-gold);
+            font-weight: bold;
+            z-index: 3000;
+            opacity: 0;
+            animation: coinsFloat 1s ease-out forwards;
+        }
+        
+        @keyframes coinsFloat {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(0.5); }
+            50% { opacity: 1; transform: translate(-50%, -150%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -200%) scale(1); }
+        }
     </style>
 </head>
 <body>
 
 <div id="app">
     <div class="top-ui" id="main-header">
-        <div class="lives-pill" onclick="App.showTimers()">
-            <svg width="20" height="20" fill="var(--c-red)" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-            <span id="lives-count" style="font-weight: 800; color: var(--c-blue);">3</span>
+        <div class="top-left-group">
+            <div class="lives-pill" onclick="App.showTimers()">
+                <svg width="20" height="20" fill="var(--c-red)" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                <span id="lives-count" style="font-weight: 800; color: var(--c-blue);">3</span>
+            </div>
+            <div class="coins-pill">
+                <svg class="coins-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/></svg>
+                <span id="coins-count" style="font-weight: 800; color: var(--c-gold);">0</span>
+            </div>
         </div>
         <div id="btn-back" style="display:none" onclick="App.nav('home')">
             <svg width="30" height="30" fill="var(--c-blue)" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
@@ -104,9 +158,17 @@
 
     <div id="scr-home" class="screen active">
         <div class="logo">Arrows</div>
-        <div id="lvl-label" style="margin-bottom: 30px; font-weight: bold; color: var(--c-blue); opacity: 0.6;">LEVEL 1</div>
+        <div id="lvl-label" style="margin-bottom: 10px; font-weight: bold; color: var(--c-blue); opacity: 0.6;">LEVEL 1</div>
+        
+        <div class="nickname-display" id="nickname-display">Player123</div>
+        
         <div class="play-btn" onclick="App.play()">
             <svg width="40" height="40" fill="white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+        
+        <div class="stats-row">
+            <button onclick="App.nav('stats')" style="padding:10px 20px; background:var(--c-blue); color:white; border:none; border-radius:10px; font-weight:bold;">Stats</button>
+            <button onclick="App.nav('shop')" style="padding:10px 20px; background:var(--c-gold); color:white; border:none; border-radius:10px; font-weight:bold;">Shop</button>
         </div>
     </div>
 
@@ -118,6 +180,10 @@
         <canvas id="confetti-canvas"></canvas>
         <div class="win-content">
             <div id="win-msg" class="win-title">Victory!</div>
+            <div class="coins-earned" id="coins-earned">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/></svg>
+                +<span id="coins-earned-amount">20</span>
+            </div>
             <div class="btn-row">
                 <button class="big-btn btn-menu" id="btn-win-menu" onclick="App.nav('home')">Menu</button>
                 <button class="big-btn btn-next" id="btn-win-next" onclick="App.nextLvl()">Next</button>
@@ -127,6 +193,76 @@
 
     <div id="scr-map" class="screen" style="padding: 20px; overflow-y: auto;">
         <div id="levels-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding-bottom: 90px;"></div>
+    </div>
+
+    <div id="scr-stats" class="screen">
+        <div style="padding: 20px;">
+            <h2 style="color: var(--c-blue); margin-bottom: 20px;" id="t-stats">Statistics</h2>
+            
+            <div class="stat-card">
+                <div class="stat-row">
+                    <span class="stat-label" id="t-total-levels">Total Levels Passed:</span>
+                    <span class="stat-value" id="stats-levels">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label" id="t-total-coins">Total Coins:</span>
+                    <span class="stat-value" id="stats-coins">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label" id="t-accuracy">Accuracy:</span>
+                    <span class="stat-value" id="stats-accuracy">0%</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label" id="t-play-time">Play Time:</span>
+                    <span class="stat-value" id="stats-time">0m</span>
+                </div>
+            </div>
+            
+            <div style="margin-top: 30px;">
+                <h3 style="color: var(--c-blue); margin-bottom: 15px;" id="t-change-nickname">Change Nickname</h3>
+                <input type="text" class="nickname-input" id="nickname-input" placeholder="Enter your nickname" maxlength="20">
+                <button class="nickname-btn" onclick="App.changeNickname()" id="t-save-nickname">Save</button>
+                <div style="margin-top: 10px; font-size: 0.9rem; color: #666;" id="t-nickname-hint">Nickname will be shown in leaderboard</div>
+            </div>
+            
+            <div class="leaderboard">
+                <h3 style="color: var(--c-blue); margin: 30px 0 15px 0;" id="t-leaderboard">Leaderboard</h3>
+                <div id="leaderboard-list">
+                    <!-- Leaderboard rows will be added here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="scr-shop" class="screen">
+        <div style="padding: 20px;">
+            <h2 style="color: var(--c-blue); margin-bottom: 20px;" id="t-shop">Shop</h2>
+            <div class="shop-grid">
+                <div class="shop-item">
+                    <div class="shop-icon">🎨</div>
+                    <div style="font-weight: bold;" id="t-arrow-skins">Arrow Skins</div>
+                    <div class="shop-coming" id="t-coming-soon">Coming Soon</div>
+                </div>
+                <div class="shop-item">
+                    <div class="shop-icon">🌈</div>
+                    <div style="font-weight: bold;" id="t-board-themes">Board Themes</div>
+                    <div class="shop-coming" id="t-coming-soon2">Coming Soon</div>
+                </div>
+                <div class="shop-item">
+                    <div class="shop-icon">⚡</div>
+                    <div style="font-weight: bold;" id="t-power-ups">Power Ups</div>
+                    <div class="shop-coming" id="t-coming-soon3">Coming Soon</div>
+                </div>
+                <div class="shop-item">
+                    <div class="shop-icon">🎭</div>
+                    <div style="font-weight: bold;" id="t-avatars">Avatars</div>
+                    <div class="shop-coming" id="t-coming-soon4">Coming Soon</div>
+                </div>
+            </div>
+            <div style="margin-top: 30px; text-align: center; color: #666; font-style: italic;" id="t-shop-hint">
+                The shop will be available in the next update!
+            </div>
+        </div>
     </div>
 
     <div id="scr-set" class="screen">
@@ -145,6 +281,7 @@
     <div class="nav-bar">
         <div class="nav-icon" id="n-map" onclick="App.nav('map')"><svg width="28" height="28" fill="currentColor" viewBox="0 0 24 24"><path d="M4 15h2v-2H4v2zm0 4h2v-2H4v2zm0-8h2V9H4v2zm4 4h12v-2H8v2zm0 4h12v-2H8v2zm0-8h12V9H8v2zM4 5h16V3H4v2z"/></svg></div>
         <div class="nav-icon active" id="n-home" onclick="App.nav('home')"><svg width="28" height="28" fill="currentColor" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg></div>
+        <div class="nav-icon" id="n-stats" onclick="App.nav('stats')"><svg width="28" height="28" fill="currentColor" viewBox="0 0 24 24"><path d="M16 11V3H8v6H2v12h20V11h-6zm-6-6h4v14h-4V5zm-6 6h4v8H4v-8zm16 8h-4v-6h4v6z"/></svg></div>
         <div class="nav-icon" id="n-set" onclick="App.nav('set')"><svg width="28" height="28" fill="currentColor" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.58 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></div>
     </div>
 
@@ -217,13 +354,13 @@ const Geo = {
     // Треки для стрелок (координаты от центра ячейки) - ПРЯМЫЕ ЛИНИИ
     getTrackForDirection(dir, cellSize) {
         const half = cellSize / 2;
-        const long = cellSize * 10; // Очень длинная стрелка для анимации
+        const long = cellSize * 10;
         
         switch(dir) {
-            case 'R': return [[5, half], [long, half]]; // Прямая линия направо
-            case 'L': return [[cellSize-5, half], [-long, half]]; // Прямая линия налево
-            case 'U': return [[half, cellSize-5], [half, -long]]; // Прямая линия вверх
-            case 'D': return [[half, 5], [half, long]]; // Прямая линия вниз
+            case 'R': return [[5, half], [long, half]];
+            case 'L': return [[cellSize-5, half], [-long, half]];
+            case 'U': return [[half, cellSize-5], [half, -long]];
+            case 'D': return [[half, 5], [half, long]];
             default: return [[5, half], [long, half]];
         }
     },
@@ -244,7 +381,6 @@ const Geo = {
     },
     
     getSegmentPath(points, distStart, distEnd) {
-        // Для двухточечных линий (прямых) упрощаем расчет
         if(points.length === 2) {
             const dx = points[1][0] - points[0][0];
             const dy = points[1][1] - points[0][1];
@@ -261,7 +397,6 @@ const Geo = {
             return { d: `M ${x1} ${y1} L ${x2} ${y2}`, head: { x: x2, y: y2, angle: angle } };
         }
         
-        // Старая логика для изогнутых линий (оставляем на всякий случай)
         let d = "", currentDist = 0;
         let pStart = this.getPointAtDist(points, Math.max(0, distStart));
         d += `M ${pStart.x} ${pStart.y}`;
@@ -278,13 +413,58 @@ const Geo = {
 
 // --- APP LOGIC ---
 const App = {
-    state: { maxLvl: 1, lives: 3, timers: [], lang: 'ru', sound: true, vib: true, savedLevels: {} },
+    state: { 
+        maxLvl: 1, 
+        lives: 3, 
+        timers: [], 
+        lang: 'ru', 
+        sound: true, 
+        vib: true, 
+        savedLevels: {},
+        coins: 0,
+        nickname: '',
+        stats: {
+            totalLevels: 0,
+            totalCoins: 0,
+            totalTime: 0,
+            correctClicks: 0,
+            totalClicks: 0,
+            lastPlay: Date.now()
+        }
+    },
     curNum: 1,
-    boardSize: 5, // Начальный размер доски
+    boardSize: 5,
     trans: {
-        ru: { lang: "Язык", rec: "Восстановление", lvl: "УРОВЕНЬ", sound: "Звук", vib: "Вибрация", heart: "Сердце", menu: "Меню", next: "Далее" },
-        en: { lang: "Language", rec: "Recovery", lvl: "LEVEL", sound: "Sound", vib: "Vibration", heart: "Heart", menu: "Menu", next: "Next" },
-        zh: { lang: "语言", rec: "恢复时间", lvl: "关卡", sound: "声音", vib: "振动", heart: "心", menu: "菜单", next: "下一关" }
+        ru: { 
+            lang: "Язык", rec: "Восстановление", lvl: "УРОВЕНЬ", sound: "Звук", vib: "Вибрация", 
+            heart: "Сердце", menu: "Меню", next: "Далее", stats: "Статистика", shop: "Магазин",
+            tTotalLevels: "Всего пройдено:", tTotalCoins: "Всего монет:", tAccuracy: "Точность:",
+            tPlayTime: "Время игры:", tChangeNickname: "Изменить никнейм", tSaveNickname: "Сохранить",
+            tNicknameHint: "Никнейм будет показан в таблице лидеров", tLeaderboard: "Таблица лидеров",
+            tShop: "Магазин", tArrowSkins: "Скины стрелок", tBoardThemes: "Темы доски",
+            tPowerUps: "Усиления", tAvatars: "Аватары", tComingSoon: "Скоро", tShopHint: "Магазин будет доступен в следующем обновлении!",
+            rank: "Ранг", name: "Имя", levels: "Уровни"
+        },
+        en: { 
+            lang: "Language", rec: "Recovery", lvl: "LEVEL", sound: "Sound", vib: "Vibration", 
+            heart: "Heart", menu: "Menu", next: "Next", stats: "Statistics", shop: "Shop",
+            tTotalLevels: "Total Levels Passed:", tTotalCoins: "Total Coins:", tAccuracy: "Accuracy:",
+            tPlayTime: "Play Time:", tChangeNickname: "Change Nickname", tSaveNickname: "Save",
+            tNicknameHint: "Nickname will be shown in leaderboard", tLeaderboard: "Leaderboard",
+            tShop: "Shop", tArrowSkins: "Arrow Skins", tBoardThemes: "Board Themes",
+            tPowerUps: "Power Ups", tAvatars: "Avatars", tComingSoon: "Coming Soon", tShopHint: "The shop will be available in the next update!",
+            rank: "Rank", name: "Name", levels: "Levels"
+        },
+        zh: { 
+            lang: "语言", rec: "恢复时间", lvl: "关卡", sound: "声音", vib: "振动", 
+            heart: "心", menu: "菜单", next: "下一关", stats: "统计", shop: "商店",
+            tTotalLevels: "通过总关数:", tTotalCoins: "总金币:", tAccuracy: "准确率:",
+            tPlayTime: "游戏时间:", tChangeNickname: "更改昵称", tSaveNickname: "保存",
+            tNicknameHint: "昵称将显示在排行榜中", tLeaderboard: "排行榜",
+            tShop: "商店", tArrowSkins: "箭头皮肤", tBoardThemes: "棋盘主题",
+            tPowerUps: "强化道具", tAvatars: "头像", tComingSoon: "即将推出", tShopHint: "商店将在下次更新中推出！",
+            rank: "排名", name: "名字", levels: "关卡"
+        }
     },
     praise: {
         ru: ["Отлично!", "Супер!", "Победа!", "Гениально!", "Класс!", "Ура!", "Великолепно!"],
@@ -296,10 +476,41 @@ const App = {
 
     init() {
         const d = localStorage.getItem('arrows_pro_v19');
-        if (d) this.state = {...this.state, ...JSON.parse(d)};
+        if (d) {
+            const saved = JSON.parse(d);
+            this.state = {...this.state, ...saved};
+            // Ensure new fields exist
+            if (!this.state.coins) this.state.coins = 0;
+            if (!this.state.nickname) this.state.nickname = this.generateRandomNickname();
+            if (!this.state.stats) {
+                this.state.stats = {
+                    totalLevels: 0,
+                    totalCoins: 0,
+                    totalTime: 0,
+                    correctClicks: 0,
+                    totalClicks: 0,
+                    lastPlay: Date.now()
+                };
+            }
+        } else {
+            this.state.nickname = this.generateRandomNickname();
+        }
+        
+        // Initialize leaderboard with some demo data
+        this.initLeaderboard();
+        
         this.updateUI();
         Confetti.init();
         setInterval(() => this.tick(), 1000);
+        
+        // Auto-save play time
+        setInterval(() => {
+            if (document.getElementById('scr-game').classList.contains('active')) {
+                this.state.stats.totalTime += 1;
+                this.save();
+            }
+        }, 60000); // Every minute
+        
         const unlock = () => {
             if(!this.audioCtx) this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             if(this.audioCtx.state === 'suspended') this.audioCtx.resume();
@@ -308,14 +519,35 @@ const App = {
         };
         window.addEventListener('touchstart', unlock);
         window.addEventListener('click', unlock);
+        
+        // Show coins animation for testing
+        setTimeout(() => {
+            this.showCoinsAnimation(20);
+        }, 1000);
     },
 
-    save() { localStorage.setItem('arrows_pro_v19', JSON.stringify(this.state)); },
+    generateRandomNickname() {
+        const adjectives = ['Fast', 'Clever', 'Smart', 'Quick', 'Sharp', 'Bright', 'Wise', 'Swift'];
+        const nouns = ['Arrow', 'Hunter', 'Player', 'Master', 'Pro', 'Champion', 'Expert', 'Wizard'];
+        const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+        const noun = nouns[Math.floor(Math.random() * nouns.length)];
+        const num = Math.floor(Math.random() * 1000);
+        return `${adj}${noun}${num}`;
+    },
+
+    save() { 
+        this.state.stats.lastPlay = Date.now();
+        localStorage.setItem('arrows_pro_v19', JSON.stringify(this.state)); 
+    },
 
     updateUI() {
         const t = this.trans[this.state.lang];
         document.getElementById('lives-count').innerText = this.state.lives;
+        document.getElementById('coins-count').innerText = this.state.coins;
         document.getElementById('lvl-label').innerText = `${t.lvl} ${this.state.maxLvl}`;
+        document.getElementById('nickname-display').innerText = this.state.nickname;
+        
+        // Update all translatable texts
         document.getElementById('t-sound').innerText = t.sound;
         document.getElementById('t-vib').innerText = t.vib;
         document.getElementById('t-lang').innerText = t.lang;
@@ -325,6 +557,46 @@ const App = {
         document.getElementById('tog-sound').classList.toggle('on', this.state.sound);
         document.getElementById('tog-vib').classList.toggle('on', this.state.vib);
         document.querySelectorAll('.l-btn').forEach(b => b.classList.toggle('active', b.id === 'l-'+this.state.lang));
+        
+        // Update stats screen
+        if (document.getElementById('t-stats')) {
+            document.getElementById('t-stats').innerText = t.stats;
+            document.getElementById('t-total-levels').innerText = t.tTotalLevels;
+            document.getElementById('t-total-coins').innerText = t.tTotalCoins;
+            document.getElementById('t-accuracy').innerText = t.tAccuracy;
+            document.getElementById('t-play-time').innerText = t.tPlayTime;
+            document.getElementById('t-change-nickname').innerText = t.tChangeNickname;
+            document.getElementById('t-save-nickname').innerText = t.tSaveNickname;
+            document.getElementById('t-nickname-hint').innerText = t.tNicknameHint;
+            document.getElementById('t-leaderboard').innerText = t.tLeaderboard;
+            document.getElementById('nickname-input').placeholder = t.name;
+            
+            // Update stats values
+            const accuracy = this.state.stats.totalClicks > 0 
+                ? Math.round((this.state.stats.correctClicks / this.state.stats.totalClicks) * 100)
+                : 0;
+            document.getElementById('stats-levels').innerText = this.state.stats.totalLevels;
+            document.getElementById('stats-coins').innerText = this.state.coins;
+            document.getElementById('stats-accuracy').innerText = `${accuracy}%`;
+            document.getElementById('stats-time').innerText = `${Math.floor(this.state.stats.totalTime / 60)}h ${this.state.stats.totalTime % 60}m`;
+        }
+        
+        // Update shop screen
+        if (document.getElementById('t-shop')) {
+            document.getElementById('t-shop').innerText = t.shop;
+            document.getElementById('t-arrow-skins').innerText = t.tArrowSkins;
+            document.getElementById('t-board-themes').innerText = t.tBoardThemes;
+            document.getElementById('t-power-ups').innerText = t.tPowerUps;
+            document.getElementById('t-avatars').innerText = t.tAvatars;
+            document.getElementById('t-coming-soon').innerText = t.tComingSoon;
+            document.getElementById('t-coming-soon2').innerText = t.tComingSoon;
+            document.getElementById('t-coming-soon3').innerText = t.tComingSoon;
+            document.getElementById('t-coming-soon4').innerText = t.tComingSoon;
+            document.getElementById('t-shop-hint').innerText = t.tShopHint;
+        }
+        
+        // Update leaderboard headers
+        this.updateLeaderboard();
     },
 
     nav(scr) {
@@ -335,7 +607,95 @@ const App = {
         document.querySelectorAll('.nav-icon').forEach(i => i.classList.toggle('active', i.id === 'n-'+scr));
         if(scr !== 'win') Confetti.stop();
         if(scr === 'map') this.renderMap();
+        if(scr === 'stats') this.updateStatsScreen();
         document.querySelector('.board-zone').classList.remove('error-shake');
+    },
+
+    updateStatsScreen() {
+        const accuracy = this.state.stats.totalClicks > 0 
+            ? Math.round((this.state.stats.correctClicks / this.state.stats.totalClicks) * 100)
+            : 0;
+        document.getElementById('stats-levels').innerText = this.state.stats.totalLevels;
+        document.getElementById('stats-coins').innerText = this.state.coins;
+        document.getElementById('stats-accuracy').innerText = `${accuracy}%`;
+        document.getElementById('stats-time').innerText = `${Math.floor(this.state.stats.totalTime / 60)}h ${this.state.stats.totalTime % 60}m`;
+        document.getElementById('nickname-input').value = this.state.nickname;
+        
+        this.updateLeaderboard();
+    },
+
+    initLeaderboard() {
+        if (!localStorage.getItem('arrows_leaderboard')) {
+            // Create demo leaderboard data
+            const demoData = [
+                { name: 'ArrowMaster', levels: 45, coins: 900, time: Date.now() - 86400000 },
+                { name: 'QuickShot', levels: 38, coins: 760, time: Date.now() - 172800000 },
+                { name: 'ProPlayer', levels: 32, coins: 640, time: Date.now() - 259200000 },
+                { name: 'SmartHunter', levels: 28, coins: 560, time: Date.now() - 345600000 },
+                { name: 'SwiftAim', levels: 25, coins: 500, time: Date.now() - 432000000 },
+            ];
+            localStorage.setItem('arrows_leaderboard', JSON.stringify(demoData));
+        }
+    },
+
+    updateLeaderboard() {
+        const leaderboard = JSON.parse(localStorage.getItem('arrows_leaderboard') || '[]');
+        
+        // Add current player to leaderboard if not already there or update
+        const playerIndex = leaderboard.findIndex(p => p.name === this.state.nickname);
+        if (playerIndex === -1) {
+            leaderboard.push({
+                name: this.state.nickname,
+                levels: this.state.maxLvl - 1,
+                coins: this.state.coins,
+                time: Date.now()
+            });
+        } else {
+            leaderboard[playerIndex] = {
+                name: this.state.nickname,
+                levels: this.state.maxLvl - 1,
+                coins: this.state.coins,
+                time: Date.now()
+            };
+        }
+        
+        // Sort by levels (descending), then by coins (descending)
+        leaderboard.sort((a, b) => {
+            if (b.levels !== a.levels) return b.levels - a.levels;
+            if (b.coins !== a.coins) return b.coins - a.coins;
+            return a.time - b.time;
+        });
+        
+        // Keep only top 10
+        const top10 = leaderboard.slice(0, 10);
+        localStorage.setItem('arrows_leaderboard', JSON.stringify(top10));
+        
+        // Render leaderboard
+        const list = document.getElementById('leaderboard-list');
+        list.innerHTML = '';
+        const t = this.trans[this.state.lang];
+        
+        top10.forEach((player, index) => {
+            const row = document.createElement('div');
+            row.className = `leader-row ${player.name === this.state.nickname ? 'leader-you' : ''}`;
+            
+            const rank = document.createElement('div');
+            rank.className = 'leader-rank';
+            rank.innerHTML = index === 0 ? '👑' : index === 1 ? '🥈' : index === 2 ? '🥉' : (index + 1);
+            
+            const name = document.createElement('div');
+            name.className = 'leader-name';
+            name.innerText = player.name;
+            
+            const levels = document.createElement('div');
+            levels.className = 'leader-levels';
+            levels.innerText = `${player.levels} ${t.levels}`;
+            
+            row.appendChild(rank);
+            row.appendChild(name);
+            row.appendChild(levels);
+            list.appendChild(row);
+        });
     },
 
     playAudio(type) {
@@ -379,20 +739,16 @@ const App = {
 
     nextLvl() { this.play(this.curNum + 1); },
 
-    // Вычисляем размер доски в зависимости от уровня
     getBoardSizeForLevel(level) {
         if (level <= 10) return 5;
         if (level <= 20) return 6;
         if (level <= 30) return 7;
         if (level <= 40) return 8;
-        return 9; // Максимальный размер
+        return 9;
     },
 
-    // Вычисляем размер стрелок в зависимости от уровня
     getArrowSizeForLevel(level, boardSize) {
-        // Базовый размер ячейки
         const baseSize = 60;
-        // Уменьшаем размер стрелок на больших уровнях
         if (level <= 15) return baseSize;
         if (level <= 25) return baseSize * 0.85;
         if (level <= 35) return baseSize * 0.75;
@@ -403,17 +759,14 @@ const App = {
         const b = document.getElementById('board'); 
         b.innerHTML = '';
         
-        // Определяем размер доски и стрелок для текущего уровня
         this.boardSize = this.getBoardSizeForLevel(n);
         const boardContainer = document.querySelector('.board-zone');
         const containerWidth = Math.min(boardContainer.offsetWidth, boardContainer.offsetHeight);
         const boardPixelSize = Math.min(containerWidth - 40, 400);
         
-        // Устанавливаем размеры доски
         b.style.width = boardPixelSize + 'px';
         b.style.height = boardPixelSize + 'px';
         
-        // Добавляем сетку для визуализации
         this.addGridLines(b, boardPixelSize);
         
         const cellSize = boardPixelSize / this.boardSize;
@@ -445,11 +798,9 @@ const App = {
         });
     },
 
-    // Добавляем линии сетки на доску
     addGridLines(board, boardSize) {
         const cellSize = boardSize / this.boardSize;
         
-        // Вертикальные линии
         for(let i = 1; i < this.boardSize; i++) {
             const line = document.createElement('div');
             line.className = 'grid-line';
@@ -460,7 +811,6 @@ const App = {
             board.appendChild(line);
         }
         
-        // Горизонтальные линии
         for(let i = 1; i < this.boardSize; i++) {
             const line = document.createElement('div');
             line.className = 'grid-line';
@@ -472,7 +822,6 @@ const App = {
         }
     },
 
-    // --- SOLVABILITY CHECKER ---
     isSolvable(arrows, boardSize) {
         let remaining = arrows.map(a => ({...a}));
         let madeProgress = true;
@@ -502,11 +851,9 @@ const App = {
             const arrows = [];
             const ds = [{id:'R', x:1, y:0}, {id:'L', x:-1, y:0}, {id:'U', x:0, y:-1}, {id:'D', x:0, y:1}];
             
-            // Random generator
             let s = (lvl * 12345) + attempts; 
             const rnd = () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
 
-            // Создаем все возможные координаты
             let coords = [];
             for(let y=0; y<boardSize; y++) {
                 for(let x=0; x<boardSize; x++) {
@@ -514,20 +861,16 @@ const App = {
                 }
             }
             
-            // Перемешиваем координаты
             for (let i = coords.length - 1; i > 0; i--) {
                 const j = Math.floor(rnd() * (i + 1));
                 [coords[i], coords[j]] = [coords[j], coords[i]];
             }
 
-            // Рассчитываем количество стрелок в зависимости от уровня и размера доски
-            // Базовое количество: 30% от общего числа клеток, но не менее 6
             const baseCells = boardSize * boardSize;
             let targetCount = Math.max(6, Math.floor(baseCells * 0.3));
             
-            // Увеличиваем количество с уровнем
             targetCount = Math.min(
-                baseCells - 1, // Оставляем хотя бы одну пустую клетку
+                baseCells - 1,
                 targetCount + Math.floor(lvl / 5)
             );
 
@@ -537,7 +880,6 @@ const App = {
                 const pos = coords[i];
                 const d = ds[Math.floor(rnd() * 4)];
                 
-                // Проверяем, чтобы стрелка не указывала за пределы доски
                 const nextX = pos.x + d.x;
                 const nextY = pos.y + d.y;
                 if(nextX >= 0 && nextX < boardSize && nextY >= 0 && nextY < boardSize) {
@@ -553,19 +895,16 @@ const App = {
                 }
             }
 
-            // Проверяем, есть ли хоть какое-то количество стрелок и решаемо ли это
             if(arrows.length >= 6 && this.isSolvable(arrows, boardSize)) {
                 return arrows;
             }
         }
         
-        // Fallback - простой уровень с минимальными стрелками
         console.warn(`Using fallback for level ${lvl}`);
         const fallback = [];
         const ds = ['R', 'L', 'U', 'D'];
         let idCounter = 0;
         
-        // Создаем стрелки по углам доски
         const corners = [
             {x: 0, y: 0, dir: 'R'},
             {x: boardSize-1, y: 0, dir: 'L'},
@@ -586,7 +925,6 @@ const App = {
             });
         }
         
-        // Добавляем еще несколько стрелок если нужно
         for(let i = fallback.length; i < 6; i++) {
             fallback.push({
                 id: idCounter++,
@@ -608,10 +946,14 @@ const App = {
         const data = this.state.savedLevels[this.curNum];
         let hit = data.find(o => !o.solved && o.id !== a.id && this.checkCollision(a, o, this.boardSize));
         
+        // Update stats
+        this.state.stats.totalClicks++;
+        if (!hit) this.state.stats.correctClicks++;
+        
         const line = el.querySelector('.p-line');
         const head = el.querySelector('.p-head');
         const track = Geo.getTrackForDirection(a.dir, arrowSize);
-        const duration = hit ? 300 : 400; // Укоротили длительность для более резкого движения
+        const duration = hit ? 300 : 400;
         
         if(!hit) { this.playAudio('win'); this.vibrate('win'); }
         let startTime = null;
@@ -623,8 +965,7 @@ const App = {
 
             let distFactor;
             if (hit) {
-                // Для столкновения - короткое быстрое движение
-                distFactor = p * arrowSize * 0.5; // Увеличил множитель для более резкого движения
+                distFactor = p * arrowSize * 0.5;
                 if(p >= 0.4 && !this.hasHitSound) {
                     this.hasHitSound = true;
                     this.playAudio('err'); 
@@ -637,8 +978,7 @@ const App = {
                     }, 500);
                 }
             } else {
-                // Для успешного движения - линейное без ускорения
-                distFactor = p * arrowSize * 10; // Линейное движение, умноженное на большой коэффициент
+                distFactor = p * arrowSize * 10;
             }
 
             const currentHeadDist = arrowSize * 0.4 + distFactor;
@@ -669,15 +1009,28 @@ const App = {
     },
 
     showWin() {
+        // Add coins
+        const coinsEarned = 20;
+        this.state.coins += coinsEarned;
+        this.state.stats.totalCoins += coinsEarned;
+        this.state.stats.totalLevels++;
+        
         if(this.curNum === this.state.maxLvl) this.state.maxLvl++;
+        
         this.save();
         this.updateUI();
+        this.updateLeaderboard();
+        
+        // Show coins animation
+        this.showCoinsAnimation(coinsEarned);
         
         const arr = this.praise[this.state.lang];
         const txt = arr[Math.floor(Math.random() * arr.length)];
         const title = document.getElementById('win-msg');
         title.innerText = txt;
         title.classList.remove('show');
+        
+        document.getElementById('coins-earned-amount').innerText = coinsEarned;
         
         this.nav('win');
         setTimeout(() => {
@@ -688,17 +1041,25 @@ const App = {
         }, 100);
     },
 
+    showCoinsAnimation(amount) {
+        const anim = document.createElement('div');
+        anim.className = 'coins-animation';
+        anim.innerHTML = `+${amount} <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/></svg>`;
+        document.getElementById('app').appendChild(anim);
+        
+        setTimeout(() => {
+            anim.remove();
+        }, 1000);
+    },
+
     checkCollision(a, o, boardSize) {
-        // Проверяем, находятся ли стрелки на одной линии
         if(a.dx !== 0 && a.y === o.y) {
-            // Обе стрелки горизонтальные
-            if(a.dx > 0 && o.x > a.x) return true; // Правая стрелка смотрит направо, цель справа
-            if(a.dx < 0 && o.x < a.x) return true; // Левая стрелка смотрит налево, цель слева
+            if(a.dx > 0 && o.x > a.x) return true;
+            if(a.dx < 0 && o.x < a.x) return true;
         }
         if(a.dy !== 0 && a.x === o.x) {
-            // Обе стрелки вертикальные
-            if(a.dy > 0 && o.y > a.y) return true; // Нижняя стрелка смотрит вниз, цель ниже
-            if(a.dy < 0 && o.y < a.y) return true; // Верхняя стрелка смотрит вверх, цель выше
+            if(a.dy > 0 && o.y > a.y) return true;
+            if(a.dy < 0 && o.y < a.y) return true;
         }
         return false;
     },
@@ -744,6 +1105,29 @@ const App = {
             d.style.cssText = "background:white; aspect-ratio:1; border-radius:10px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:var(--c-blue); cursor:pointer; box-shadow:0 2px 5px rgba(0,0,0,0.05);";
             d.innerText = i; d.onclick = () => this.play(i); g.appendChild(d);
         }
+    },
+
+    changeNickname() {
+        const input = document.getElementById('nickname-input');
+        const newNickname = input.value.trim();
+        
+        if (newNickname.length < 3) {
+            alert('Nickname must be at least 3 characters long');
+            return;
+        }
+        
+        if (newNickname.length > 20) {
+            alert('Nickname must be less than 20 characters');
+            return;
+        }
+        
+        this.state.nickname = newNickname;
+        this.save();
+        this.updateUI();
+        this.updateLeaderboard();
+        
+        // Show confirmation
+        alert('Nickname changed successfully!');
     },
 
     toggle(k) { this.state[k] = !this.state[k]; this.save(); this.updateUI(); },
