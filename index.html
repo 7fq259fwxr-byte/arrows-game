@@ -108,14 +108,20 @@
         .leader-you { background: rgba(0, 51, 102, 0.05); border-radius: 10px; }
         
         .shop-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; padding: 20px 0; }
-        .shop-item { background: white; border-radius: 15px; padding: 20px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .shop-item { background: white; border-radius: 15px; padding: 20px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.2s; position: relative; overflow: hidden; }
+        .shop-item:active { transform: scale(0.95); }
+        .shop-item.owned { background: linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%); }
+        .shop-item.owned::after { content: '✓'; position: absolute; top: 5px; right: 8px; background: var(--c-green); color: white; width: 20px; height: 20px; border-radius: 50%; font-size: 14px; line-height: 20px; }
+        .shop-item.selected { border: 3px solid var(--c-blue); }
         .shop-icon { font-size: 2.5rem; margin-bottom: 10px; }
+        .shop-name { font-weight: bold; margin: 5px 0; }
         .shop-price { color: var(--c-gold); font-weight: bold; margin: 10px 0; }
-        .shop-coming { color: #999; font-style: italic; margin-top: 10px; font-size: 0.9rem; }
+        .shop-buy-btn { background: var(--c-blue); color: white; border: none; padding: 8px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 5px; }
+        .shop-buy-btn:disabled { background: #ccc; cursor: not-allowed; }
+        .shop-buy-btn.owned { background: var(--c-green); }
         
         .nickname-display { margin: 10px 0; color: var(--c-blue); font-weight: bold; }
-        .nickname-input { width: 100%; padding: 12px; border: 2px solid var(--c-blue); border-radius: 10px; font-size: 1rem; margin: 10px 0; text-align: center; }
-        .nickname-btn { background: var(--c-blue); color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        .tg-connect-btn { background: linear-gradient(135deg, #0088cc, #34aadc); color: white; border: none; padding: 12px 24px; border-radius: 12px; font-weight: bold; cursor: pointer; margin: 10px 0; }
         
         .coins-animation {
             position: fixed;
@@ -135,6 +141,17 @@
             50% { opacity: 1; transform: translate(-50%, -150%) scale(1); }
             100% { opacity: 0; transform: translate(-50%, -200%) scale(1); }
         }
+        
+        .loading { display: flex; justify-content: center; align-items: center; height: 100%; }
+        .loading-spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid var(--c-blue); border-radius: 50%; animation: spin 1s linear infinite; }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error-message { color: var(--c-red); text-align: center; padding: 20px; }
+        .tg-info { background: rgba(0, 136, 204, 0.1); padding: 15px; border-radius: 10px; margin: 15px 0; text-align: center; }
     </style>
 </head>
 <body>
@@ -160,7 +177,11 @@
         <div class="logo">Arrows</div>
         <div id="lvl-label" style="margin-bottom: 10px; font-weight: bold; color: var(--c-blue); opacity: 0.6;">LEVEL 1</div>
         
-        <div class="nickname-display" id="nickname-display">Player123</div>
+        <div class="tg-info" id="tg-info" style="display: none;">
+            <div id="nickname-display" style="font-weight: bold; margin-bottom: 5px;"></div>
+            <div style="font-size: 0.9rem; color: #666;" id="tg-connected">Connected to Telegram</div>
+        </div>
+        <button class="tg-connect-btn" onclick="App.connectTelegram()" id="btn-connect-tg">Connect Telegram</button>
         
         <div class="play-btn" onclick="App.play()">
             <svg width="40" height="40" fill="white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
@@ -199,7 +220,11 @@
         <div style="padding: 20px;">
             <h2 style="color: var(--c-blue); margin-bottom: 20px;" id="t-stats">Statistics</h2>
             
-            <div class="stat-card">
+            <div id="stats-loading" class="loading" style="display: none;">
+                <div class="loading-spinner"></div>
+            </div>
+            
+            <div class="stat-card" id="stats-card" style="display: none;">
                 <div class="stat-row">
                     <span class="stat-label" id="t-total-levels">Total Levels Passed:</span>
                     <span class="stat-value" id="stats-levels">0</span>
@@ -209,27 +234,24 @@
                     <span class="stat-value" id="stats-coins">0</span>
                 </div>
                 <div class="stat-row">
-                    <span class="stat-label" id="t-accuracy">Accuracy:</span>
-                    <span class="stat-value" id="stats-accuracy">0%</span>
+                    <span class="stat-label" id="t-rank">Global Rank:</span>
+                    <span class="stat-value" id="stats-rank">-</span>
                 </div>
                 <div class="stat-row">
-                    <span class="stat-label" id="t-play-time">Play Time:</span>
-                    <span class="stat-value" id="stats-time">0m</span>
+                    <span class="stat-label" id="t-skins-owned">Skins Owned:</span>
+                    <span class="stat-value" id="stats-skins">0</span>
                 </div>
             </div>
             
             <div style="margin-top: 30px;">
-                <h3 style="color: var(--c-blue); margin-bottom: 15px;" id="t-change-nickname">Change Nickname</h3>
-                <input type="text" class="nickname-input" id="nickname-input" placeholder="Enter your nickname" maxlength="20">
-                <button class="nickname-btn" onclick="App.changeNickname()" id="t-save-nickname">Save</button>
-                <div style="margin-top: 10px; font-size: 0.9rem; color: #666;" id="t-nickname-hint">Nickname will be shown in leaderboard</div>
-            </div>
-            
-            <div class="leaderboard">
-                <h3 style="color: var(--c-blue); margin: 30px 0 15px 0;" id="t-leaderboard">Leaderboard</h3>
-                <div id="leaderboard-list">
+                <h3 style="color: var(--c-blue); margin-bottom: 15px;" id="t-leaderboard">Leaderboard</h3>
+                <div id="leaderboard-loading" class="loading">
+                    <div class="loading-spinner"></div>
+                </div>
+                <div id="leaderboard-list" style="display: none;">
                     <!-- Leaderboard rows will be added here -->
                 </div>
+                <div id="leaderboard-error" class="error-message" style="display: none;"></div>
             </div>
         </div>
     </div>
@@ -237,30 +259,28 @@
     <div id="scr-shop" class="screen">
         <div style="padding: 20px;">
             <h2 style="color: var(--c-blue); margin-bottom: 20px;" id="t-shop">Shop</h2>
-            <div class="shop-grid">
-                <div class="shop-item">
-                    <div class="shop-icon">🎨</div>
-                    <div style="font-weight: bold;" id="t-arrow-skins">Arrow Skins</div>
-                    <div class="shop-coming" id="t-coming-soon">Coming Soon</div>
-                </div>
-                <div class="shop-item">
-                    <div class="shop-icon">🌈</div>
-                    <div style="font-weight: bold;" id="t-board-themes">Board Themes</div>
-                    <div class="shop-coming" id="t-coming-soon2">Coming Soon</div>
-                </div>
-                <div class="shop-item">
-                    <div class="shop-icon">⚡</div>
-                    <div style="font-weight: bold;" id="t-power-ups">Power Ups</div>
-                    <div class="shop-coming" id="t-coming-soon3">Coming Soon</div>
-                </div>
-                <div class="shop-item">
-                    <div class="shop-icon">🎭</div>
-                    <div style="font-weight: bold;" id="t-avatars">Avatars</div>
-                    <div class="shop-coming" id="t-coming-soon4">Coming Soon</div>
-                </div>
+            <div id="shop-loading" class="loading">
+                <div class="loading-spinner"></div>
             </div>
-            <div style="margin-top: 30px; text-align: center; color: #666; font-style: italic;" id="t-shop-hint">
-                The shop will be available in the next update!
+            <div id="shop-not-connected" style="display: none; text-align: center; padding: 40px 20px;">
+                <div style="font-size: 1.2rem; margin-bottom: 20px;">Connect to Telegram to access the shop!</div>
+                <button class="tg-connect-btn" onclick="App.connectTelegram()">Connect Telegram</button>
+            </div>
+            <div id="shop-content" style="display: none;">
+                <h3 style="color: var(--c-blue); margin: 20px 0 10px 0;" id="t-arrow-skins">Arrow Skins</h3>
+                <div class="shop-grid" id="shop-arrows">
+                    <!-- Arrow skins will be added here -->
+                </div>
+                
+                <h3 style="color: var(--c-blue); margin: 20px 0 10px 0;" id="t-board-themes">Board Themes</h3>
+                <div class="shop-grid" id="shop-boards">
+                    <!-- Board themes will be added here -->
+                </div>
+                
+                <h3 style="color: var(--c-blue); margin: 20px 0 10px 0;" id="t-effects">Special Effects</h3>
+                <div class="shop-grid" id="shop-effects">
+                    <!-- Effects will be added here -->
+                </div>
             </div>
         </div>
     </div>
@@ -275,6 +295,10 @@
                 <button class="l-btn" id="l-en" onclick="App.setLang('en')">EN</button>
                 <button class="l-btn" id="l-zh" onclick="App.setLang('zh')">ZH</button>
             </div>
+        </div>
+        <div class="set-row" style="flex-direction: column; gap: 15px; align-items: flex-start;">
+            <span>Telegram User ID:</span>
+            <div style="font-family: monospace; font-size: 0.9rem; color: #666;" id="tg-user-id">Not connected</div>
         </div>
     </div>
 
@@ -295,6 +319,9 @@
 </div>
 
 <script>
+// API Configuration
+const API_BASE_URL = 'http://localhost:8080/api'; // Change this to your server URL
+
 // --- CONFETTI ENGINE ---
 const Confetti = {
     canvas: null, ctx: null, w: 0, h: 0, particles: [], active: false,
@@ -351,7 +378,6 @@ const Confetti = {
 
 // --- GEOMETRY ENGINE ---
 const Geo = {
-    // Треки для стрелок (координаты от центра ячейки) - ПРЯМЫЕ ЛИНИИ
     getTrackForDirection(dir, cellSize) {
         const half = cellSize / 2;
         const long = cellSize * 10;
@@ -411,6 +437,34 @@ const Geo = {
     }
 };
 
+// Shop Items Database
+const ShopItems = {
+    arrowSkins: [
+        { id: 'default', name: { ru: 'Классический', en: 'Classic', zh: '经典' }, price: 0, icon: '🏹', color: '#003366' },
+        { id: 'fire', name: { ru: 'Огненный', en: 'Fire', zh: '火焰' }, price: 100, icon: '🔥', color: '#FF4500' },
+        { id: 'ice', name: { ru: 'Ледяной', en: 'Ice', zh: '冰霜' }, price: 150, icon: '❄️', color: '#00BFFF' },
+        { id: 'gold', name: { ru: 'Золотой', en: 'Golden', zh: '黄金' }, price: 300, icon: '🥇', color: '#FFD700' },
+        { id: 'neon', name: { ru: 'Неоновый', en: 'Neon', zh: '霓虹' }, price: 200, icon: '💡', color: '#00FF00' },
+        { id: 'rainbow', name: { ru: 'Радужный', en: 'Rainbow', zh: '彩虹' }, price: 500, icon: '🌈', color: 'linear-gradient(45deg, #FF0000, #FF7F00, #FFFF00, #00FF00, #0000FF, #4B0082, #9400D3)' }
+    ],
+    boardThemes: [
+        { id: 'default', name: { ru: 'Классика', en: 'Classic', zh: '经典' }, price: 0, icon: '⬜', color: '#FFFFFF' },
+        { id: 'wood', name: { ru: 'Дерево', en: 'Wood', zh: '木头' }, price: 200, icon: '🪵', color: '#8B4513' },
+        { id: 'space', name: { ru: 'Космос', en: 'Space', zh: '太空' }, price: 300, icon: '🚀', color: '#000033' },
+        { id: 'marble', name: { ru: 'Мрамор', en: 'Marble', zh: '大理石' }, price: 250, icon: '💎', color: '#F0F0F0' },
+        { id: 'night', name: { ru: 'Ночь', en: 'Night', zh: '夜晚' }, price: 180, icon: '🌙', color: '#191970' },
+        { id: 'ocean', name: { ru: 'Океан', en: 'Ocean', zh: '海洋' }, price: 220, icon: '🌊', color: '#1E90FF' }
+    ],
+    effects: [
+        { id: 'none', name: { ru: 'Без эффектов', en: 'No Effects', zh: '无效果' }, price: 0, icon: '⚪', description: { ru: 'Стандартные эффекты', en: 'Standard effects', zh: '标准效果' } },
+        { id: 'sparkles', name: { ru: 'Искры', en: 'Sparkles', zh: '火花' }, price: 150, icon: '✨', description: { ru: 'Искры при клике', en: 'Sparkles on click', zh: '点击时产生火花' } },
+        { id: 'confetti', name: { ru: 'Конфетти', en: 'Confetti', zh: '五彩纸屑' }, price: 200, icon: '🎉', description: { ru: 'Конфетти при победе', en: 'Confetti on win', zh: '胜利时撒纸屑' } },
+        { id: 'fireworks', name: { ru: 'Фейерверк', en: 'Fireworks', zh: '烟花' }, price: 300, icon: '🎆', description: { ru: 'Фейерверк при победе', en: 'Fireworks on win', zh: '胜利时放烟花' } },
+        { id: 'glow', name: { ru: 'Свечение', en: 'Glow', zh: '发光' }, price: 100, icon: '🌟', description: { ru: 'Свечение стрелок', en: 'Arrow glow', zh: '箭头发光效果' } },
+        { id: 'trail', name: { ru: 'След', en: 'Trail', zh: '轨迹' }, price: 120, icon: '🌀', description: { ru: 'След за стрелкой', en: 'Arrow trail', zh: '箭头轨迹效果' } }
+    ]
+};
+
 // --- APP LOGIC ---
 const App = {
     state: { 
@@ -421,16 +475,16 @@ const App = {
         sound: true, 
         vib: true, 
         savedLevels: {},
+        // Telegram data
+        tgUserId: null,
+        tgUsername: null,
+        tgConnected: false,
+        // Server data
         coins: 0,
-        nickname: '',
-        stats: {
-            totalLevels: 0,
-            totalCoins: 0,
-            totalTime: 0,
-            correctClicks: 0,
-            totalClicks: 0,
-            lastPlay: Date.now()
-        }
+        skins: ['default'],
+        selectedSkin: 'default',
+        selectedBoard: 'default',
+        selectedEffect: 'none'
     },
     curNum: 1,
     boardSize: 5,
@@ -438,32 +492,32 @@ const App = {
         ru: { 
             lang: "Язык", rec: "Восстановление", lvl: "УРОВЕНЬ", sound: "Звук", vib: "Вибрация", 
             heart: "Сердце", menu: "Меню", next: "Далее", stats: "Статистика", shop: "Магазин",
-            tTotalLevels: "Всего пройдено:", tTotalCoins: "Всего монет:", tAccuracy: "Точность:",
-            tPlayTime: "Время игры:", tChangeNickname: "Изменить никнейм", tSaveNickname: "Сохранить",
-            tNicknameHint: "Никнейм будет показан в таблице лидеров", tLeaderboard: "Таблица лидеров",
-            tShop: "Магазин", tArrowSkins: "Скины стрелок", tBoardThemes: "Темы доски",
-            tPowerUps: "Усиления", tAvatars: "Аватары", tComingSoon: "Скоро", tShopHint: "Магазин будет доступен в следующем обновлении!",
-            rank: "Ранг", name: "Имя", levels: "Уровни"
+            tTotalLevels: "Всего пройдено:", tTotalCoins: "Всего монет:", tRank: "Глобальный ранг:",
+            tSkinsOwned: "Скинов куплено:", tLeaderboard: "Таблица лидеров", tShop: "Магазин", 
+            tArrowSkins: "Скины стрелок", tBoardThemes: "Темы доски", tEffects: "Спецэффекты",
+            rank: "Ранг", name: "Имя", levels: "Уровни", buy: "КУПИТЬ", owned: "ВЛАДЕЮ", select: "ВЫБРАТЬ",
+            connected: "Подключен к Telegram", connect: "Подключить Telegram", loading: "Загрузка...",
+            errorNoConnection: "Нет подключения к серверу", errorLoadData: "Ошибка загрузки данных"
         },
         en: { 
             lang: "Language", rec: "Recovery", lvl: "LEVEL", sound: "Sound", vib: "Vibration", 
             heart: "Heart", menu: "Menu", next: "Next", stats: "Statistics", shop: "Shop",
-            tTotalLevels: "Total Levels Passed:", tTotalCoins: "Total Coins:", tAccuracy: "Accuracy:",
-            tPlayTime: "Play Time:", tChangeNickname: "Change Nickname", tSaveNickname: "Save",
-            tNicknameHint: "Nickname will be shown in leaderboard", tLeaderboard: "Leaderboard",
-            tShop: "Shop", tArrowSkins: "Arrow Skins", tBoardThemes: "Board Themes",
-            tPowerUps: "Power Ups", tAvatars: "Avatars", tComingSoon: "Coming Soon", tShopHint: "The shop will be available in the next update!",
-            rank: "Rank", name: "Name", levels: "Levels"
+            tTotalLevels: "Total Levels Passed:", tTotalCoins: "Total Coins:", tRank: "Global Rank:",
+            tSkinsOwned: "Skins Owned:", tLeaderboard: "Leaderboard", tShop: "Shop",
+            tArrowSkins: "Arrow Skins", tBoardThemes: "Board Themes", tEffects: "Special Effects",
+            rank: "Rank", name: "Name", levels: "Levels", buy: "BUY", owned: "OWNED", select: "SELECT",
+            connected: "Connected to Telegram", connect: "Connect Telegram", loading: "Loading...",
+            errorNoConnection: "No connection to server", errorLoadData: "Error loading data"
         },
         zh: { 
             lang: "语言", rec: "恢复时间", lvl: "关卡", sound: "声音", vib: "振动", 
             heart: "心", menu: "菜单", next: "下一关", stats: "统计", shop: "商店",
-            tTotalLevels: "通过总关数:", tTotalCoins: "总金币:", tAccuracy: "准确率:",
-            tPlayTime: "游戏时间:", tChangeNickname: "更改昵称", tSaveNickname: "保存",
-            tNicknameHint: "昵称将显示在排行榜中", tLeaderboard: "排行榜",
-            tShop: "商店", tArrowSkins: "箭头皮肤", tBoardThemes: "棋盘主题",
-            tPowerUps: "强化道具", tAvatars: "头像", tComingSoon: "即将推出", tShopHint: "商店将在下次更新中推出！",
-            rank: "排名", name: "名字", levels: "关卡"
+            tTotalLevels: "通过总关数:", tTotalCoins: "总金币:", tRank: "全球排名:",
+            tSkinsOwned: "已拥有皮肤:", tLeaderboard: "排行榜", tShop: "商店",
+            tArrowSkins: "箭头皮肤", tBoardThemes: "棋盘主题", tEffects: "特效",
+            rank: "排名", name: "名字", levels: "关卡", buy: "购买", owned: "已拥有", select: "选择",
+            connected: "已连接 Telegram", connect: "连接 Telegram", loading: "加载中...",
+            errorNoConnection: "无法连接服务器", errorLoadData: "加载数据错误"
         }
     },
     praise: {
@@ -479,37 +533,14 @@ const App = {
         if (d) {
             const saved = JSON.parse(d);
             this.state = {...this.state, ...saved};
-            // Ensure new fields exist
-            if (!this.state.coins) this.state.coins = 0;
-            if (!this.state.nickname) this.state.nickname = this.generateRandomNickname();
-            if (!this.state.stats) {
-                this.state.stats = {
-                    totalLevels: 0,
-                    totalCoins: 0,
-                    totalTime: 0,
-                    correctClicks: 0,
-                    totalClicks: 0,
-                    lastPlay: Date.now()
-                };
-            }
-        } else {
-            this.state.nickname = this.generateRandomNickname();
         }
         
-        // Initialize leaderboard with some demo data
-        this.initLeaderboard();
+        // Check for Telegram initData
+        this.checkTelegramInitData();
         
         this.updateUI();
         Confetti.init();
         setInterval(() => this.tick(), 1000);
-        
-        // Auto-save play time
-        setInterval(() => {
-            if (document.getElementById('scr-game').classList.contains('active')) {
-                this.state.stats.totalTime += 1;
-                this.save();
-            }
-        }, 60000); // Every minute
         
         const unlock = () => {
             if(!this.audioCtx) this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -519,84 +550,305 @@ const App = {
         };
         window.addEventListener('touchstart', unlock);
         window.addEventListener('click', unlock);
-        
-        // Show coins animation for testing
-        setTimeout(() => {
-            this.showCoinsAnimation(20);
-        }, 1000);
     },
 
-    generateRandomNickname() {
-        const adjectives = ['Fast', 'Clever', 'Smart', 'Quick', 'Sharp', 'Bright', 'Wise', 'Swift'];
-        const nouns = ['Arrow', 'Hunter', 'Player', 'Master', 'Pro', 'Champion', 'Expert', 'Wizard'];
-        const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
-        const noun = nouns[Math.floor(Math.random() * nouns.length)];
-        const num = Math.floor(Math.random() * 1000);
-        return `${adj}${noun}${num}`;
+    checkTelegramInitData() {
+        // Check if we're in Telegram WebApp
+        if (window.Telegram?.WebApp) {
+            const tg = window.Telegram.WebApp;
+            tg.ready();
+            
+            const user = tg.initDataUnsafe?.user;
+            if (user) {
+                this.state.tgUserId = user.id;
+                this.state.tgUsername = user.username || `${user.first_name || ''} ${user.last_name || ''}`.trim() || `User${user.id}`;
+                this.state.tgConnected = true;
+                
+                // Load user data from server
+                this.loadUserData();
+            }
+            
+            // Expand to full height
+            tg.expand();
+        }
+    },
+
+    async loadUserData() {
+        if (!this.state.tgUserId) return;
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/get_user_data`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: this.state.tgUserId })
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    this.state.coins = data.coins || 0;
+                    this.state.maxLvl = data.max_level || 1;
+                    this.state.tgUsername = data.username || this.state.tgUsername;
+                    this.state.skins = data.skins || ['default'];
+                    this.state.selectedSkin = data.selected_skin || 'default';
+                    
+                    this.updateUI();
+                    this.save();
+                }
+            }
+        } catch (error) {
+            console.error('Error loading user data:', error);
+        }
+    },
+
+    async updateScore() {
+        if (!this.state.tgUserId) return;
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/update_score`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: this.state.tgUserId,
+                    username: this.state.tgUsername,
+                    level: this.state.maxLvl,
+                    coins_earned: 20
+                })
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    this.state.coins = data.coins;
+                    this.updateUI();
+                }
+            }
+        } catch (error) {
+            console.error('Error updating score:', error);
+        }
+    },
+
+    async loadLeaderboard() {
+        try {
+            document.getElementById('leaderboard-loading').style.display = 'flex';
+            document.getElementById('leaderboard-list').style.display = 'none';
+            document.getElementById('leaderboard-error').style.display = 'none';
+            
+            const response = await fetch(`${API_BASE_URL}/leaderboard`);
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    this.renderLeaderboard(data.leaderboard);
+                    document.getElementById('leaderboard-loading').style.display = 'none';
+                    document.getElementById('leaderboard-list').style.display = 'block';
+                }
+            } else {
+                throw new Error('Server error');
+            }
+        } catch (error) {
+            console.error('Error loading leaderboard:', error);
+            document.getElementById('leaderboard-loading').style.display = 'none';
+            document.getElementById('leaderboard-error').style.display = 'block';
+            document.getElementById('leaderboard-error').innerText = this.trans[this.state.lang].errorLoadData;
+        }
+    },
+
+    renderLeaderboard(leaderboard) {
+        const list = document.getElementById('leaderboard-list');
+        list.innerHTML = '';
+        const t = this.trans[this.state.lang];
+        
+        if (!leaderboard || leaderboard.length === 0) {
+            list.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">' + t.loading + '</div>';
+            return;
+        }
+        
+        leaderboard.forEach((player, index) => {
+            const row = document.createElement('div');
+            row.className = `leader-row ${player.user_id == this.state.tgUserId ? 'leader-you' : ''}`;
+            
+            const rank = document.createElement('div');
+            rank.className = 'leader-rank';
+            rank.innerHTML = index === 0 ? '👑' : index === 1 ? '🥈' : index === 2 ? '🥉' : (index + 1);
+            
+            const name = document.createElement('div');
+            name.className = 'leader-name';
+            name.innerText = player.username || `Player${player.user_id}`;
+            
+            const levels = document.createElement('div');
+            levels.className = 'leader-levels';
+            levels.innerText = `${player.score} ${t.levels}`;
+            
+            row.appendChild(rank);
+            row.appendChild(name);
+            row.appendChild(levels);
+            list.appendChild(row);
+        });
+    },
+
+    renderShop() {
+        if (!this.state.tgConnected) {
+            document.getElementById('shop-loading').style.display = 'none';
+            document.getElementById('shop-not-connected').style.display = 'block';
+            document.getElementById('shop-content').style.display = 'none';
+            return;
+        }
+        
+        document.getElementById('shop-loading').style.display = 'none';
+        document.getElementById('shop-not-connected').style.display = 'none';
+        document.getElementById('shop-content').style.display = 'block';
+        
+        const t = this.trans[this.state.lang];
+        
+        // Render arrow skins
+        const arrowsContainer = document.getElementById('shop-arrows');
+        arrowsContainer.innerHTML = '';
+        ShopItems.arrowSkins.forEach(skin => {
+            const owned = this.state.skins.includes(skin.id);
+            const selected = this.state.selectedSkin === skin.id;
+            
+            const item = document.createElement('div');
+            item.className = `shop-item ${owned ? 'owned' : ''} ${selected ? 'selected' : ''}`;
+            item.dataset.id = skin.id;
+            item.dataset.type = 'arrow';
+            item.dataset.price = skin.price;
+            
+            const icon = document.createElement('div');
+            icon.className = 'shop-icon';
+            icon.innerHTML = skin.icon;
+            if (typeof skin.color === 'string' && skin.color.includes('gradient')) {
+                icon.style.background = skin.color;
+                icon.style.webkitBackgroundClip = 'text';
+                icon.style.webkitTextFillColor = 'transparent';
+                icon.style.backgroundClip = 'text';
+            } else if (skin.color) {
+                icon.style.color = skin.color;
+            }
+            
+            const name = document.createElement('div');
+            name.className = 'shop-name';
+            name.innerText = skin.name[this.state.lang] || skin.name.en;
+            
+            const price = document.createElement('div');
+            price.className = 'shop-price';
+            price.innerText = skin.price === 0 ? t.owned : `${skin.price} 🪙`;
+            
+            const button = document.createElement('button');
+            button.className = `shop-buy-btn ${owned ? 'owned' : ''}`;
+            button.innerText = owned ? (selected ? t.selected : t.select) : t.buy;
+            button.disabled = !owned && this.state.coins < skin.price;
+            
+            if (owned) {
+                button.onclick = () => this.selectItem('arrow', skin.id);
+            } else {
+                button.onclick = () => this.buyItem('arrow', skin.id, skin.price);
+            }
+            
+            item.appendChild(icon);
+            item.appendChild(name);
+            item.appendChild(price);
+            item.appendChild(button);
+            arrowsContainer.appendChild(item);
+        });
+        
+        // Render board themes (simplified for now)
+        const boardsContainer = document.getElementById('shop-boards');
+        boardsContainer.innerHTML = '<div style="grid-column: span 2; text-align: center; padding: 20px; color: #666;">' + 
+                                  t.loading + ' (Coming in next update)</div>';
+        
+        // Render effects (simplified for now)
+        const effectsContainer = document.getElementById('shop-effects');
+        effectsContainer.innerHTML = '<div style="grid-column: span 2; text-align: center; padding: 20px; color: #666;">' + 
+                                   t.loading + ' (Coming in next update)</div>';
+    },
+
+    async buyItem(type, id, price) {
+        if (!this.state.tgConnected) {
+            alert('Connect to Telegram first!');
+            return;
+        }
+        
+        if (this.state.coins < price) {
+            alert('Not enough coins!');
+            return;
+        }
+        
+        // In a real app, you would call an API to process the purchase
+        // For now, simulate purchase
+        this.state.coins -= price;
+        this.state.skins.push(id);
+        this.state.selectedSkin = id;
+        
+        this.updateUI();
+        this.save();
+        
+        // Update server (simulated)
+        this.updateScore();
+        
+        // Re-render shop
+        this.renderShop();
+        
+        alert('Purchase successful!');
+    },
+
+    selectItem(type, id) {
+        if (type === 'arrow') {
+            this.state.selectedSkin = id;
+        } else if (type === 'board') {
+            this.state.selectedBoard = id;
+        } else if (type === 'effect') {
+            this.state.selectedEffect = id;
+        }
+        
+        this.updateUI();
+        this.save();
+        this.renderShop();
     },
 
     save() { 
-        this.state.stats.lastPlay = Date.now();
         localStorage.setItem('arrows_pro_v19', JSON.stringify(this.state)); 
     },
 
     updateUI() {
         const t = this.trans[this.state.lang];
+        
+        // Update basic UI
         document.getElementById('lives-count').innerText = this.state.lives;
         document.getElementById('coins-count').innerText = this.state.coins;
         document.getElementById('lvl-label').innerText = `${t.lvl} ${this.state.maxLvl}`;
-        document.getElementById('nickname-display').innerText = this.state.nickname;
+        document.getElementById('tg-user-id').innerText = this.state.tgUserId || 'Not connected';
+        
+        // Update Telegram connection status
+        if (this.state.tgConnected) {
+            document.getElementById('tg-info').style.display = 'block';
+            document.getElementById('nickname-display').innerText = this.state.tgUsername;
+            document.getElementById('tg-connected').innerText = t.connected;
+            document.getElementById('btn-connect-tg').style.display = 'none';
+        } else {
+            document.getElementById('tg-info').style.display = 'none';
+            document.getElementById('btn-connect-tg').style.display = 'block';
+            document.getElementById('btn-connect-tg').innerText = t.connect;
+        }
         
         // Update all translatable texts
-        document.getElementById('t-sound').innerText = t.sound;
-        document.getElementById('t-vib').innerText = t.vib;
-        document.getElementById('t-lang').innerText = t.lang;
-        document.getElementById('t-rec').innerText = t.rec;
-        document.getElementById('btn-win-menu').innerText = t.menu;
-        document.getElementById('btn-win-next').innerText = t.next;
+        const elements = {
+            't-sound': t.sound, 't-vib': t.vib, 't-lang': t.lang, 't-rec': t.rec,
+            'btn-win-menu': t.menu, 'btn-win-next': t.next, 't-stats': t.stats,
+            't-total-levels': t.tTotalLevels, 't-total-coins': t.tTotalCoins,
+            't-rank': t.tRank, 't-skins-owned': t.tSkinsOwned, 't-leaderboard': t.tLeaderboard,
+            't-shop': t.shop, 't-arrow-skins': t.tArrowSkins, 't-board-themes': t.tBoardThemes,
+            't-effects': t.tEffects
+        };
+        
+        Object.entries(elements).forEach(([id, text]) => {
+            const el = document.getElementById(id);
+            if (el) el.innerText = text;
+        });
+        
         document.getElementById('tog-sound').classList.toggle('on', this.state.sound);
         document.getElementById('tog-vib').classList.toggle('on', this.state.vib);
         document.querySelectorAll('.l-btn').forEach(b => b.classList.toggle('active', b.id === 'l-'+this.state.lang));
-        
-        // Update stats screen
-        if (document.getElementById('t-stats')) {
-            document.getElementById('t-stats').innerText = t.stats;
-            document.getElementById('t-total-levels').innerText = t.tTotalLevels;
-            document.getElementById('t-total-coins').innerText = t.tTotalCoins;
-            document.getElementById('t-accuracy').innerText = t.tAccuracy;
-            document.getElementById('t-play-time').innerText = t.tPlayTime;
-            document.getElementById('t-change-nickname').innerText = t.tChangeNickname;
-            document.getElementById('t-save-nickname').innerText = t.tSaveNickname;
-            document.getElementById('t-nickname-hint').innerText = t.tNicknameHint;
-            document.getElementById('t-leaderboard').innerText = t.tLeaderboard;
-            document.getElementById('nickname-input').placeholder = t.name;
-            
-            // Update stats values
-            const accuracy = this.state.stats.totalClicks > 0 
-                ? Math.round((this.state.stats.correctClicks / this.state.stats.totalClicks) * 100)
-                : 0;
-            document.getElementById('stats-levels').innerText = this.state.stats.totalLevels;
-            document.getElementById('stats-coins').innerText = this.state.coins;
-            document.getElementById('stats-accuracy').innerText = `${accuracy}%`;
-            document.getElementById('stats-time').innerText = `${Math.floor(this.state.stats.totalTime / 60)}h ${this.state.stats.totalTime % 60}m`;
-        }
-        
-        // Update shop screen
-        if (document.getElementById('t-shop')) {
-            document.getElementById('t-shop').innerText = t.shop;
-            document.getElementById('t-arrow-skins').innerText = t.tArrowSkins;
-            document.getElementById('t-board-themes').innerText = t.tBoardThemes;
-            document.getElementById('t-power-ups').innerText = t.tPowerUps;
-            document.getElementById('t-avatars').innerText = t.tAvatars;
-            document.getElementById('t-coming-soon').innerText = t.tComingSoon;
-            document.getElementById('t-coming-soon2').innerText = t.tComingSoon;
-            document.getElementById('t-coming-soon3').innerText = t.tComingSoon;
-            document.getElementById('t-coming-soon4').innerText = t.tComingSoon;
-            document.getElementById('t-shop-hint').innerText = t.tShopHint;
-        }
-        
-        // Update leaderboard headers
-        this.updateLeaderboard();
     },
 
     nav(scr) {
@@ -605,97 +857,63 @@ const App = {
         document.getElementById('main-header').style.visibility = (scr==='home' || scr==='game') ? 'visible' : 'hidden';
         document.getElementById('btn-back').style.display = (scr==='game') ? 'block' : 'none';
         document.querySelectorAll('.nav-icon').forEach(i => i.classList.toggle('active', i.id === 'n-'+scr));
+        
         if(scr !== 'win') Confetti.stop();
         if(scr === 'map') this.renderMap();
-        if(scr === 'stats') this.updateStatsScreen();
+        if(scr === 'stats') this.showStatsScreen();
+        if(scr === 'shop') this.renderShop();
+        
         document.querySelector('.board-zone').classList.remove('error-shake');
     },
 
-    updateStatsScreen() {
-        const accuracy = this.state.stats.totalClicks > 0 
-            ? Math.round((this.state.stats.correctClicks / this.state.stats.totalClicks) * 100)
-            : 0;
-        document.getElementById('stats-levels').innerText = this.state.stats.totalLevels;
-        document.getElementById('stats-coins').innerText = this.state.coins;
-        document.getElementById('stats-accuracy').innerText = `${accuracy}%`;
-        document.getElementById('stats-time').innerText = `${Math.floor(this.state.stats.totalTime / 60)}h ${this.state.stats.totalTime % 60}m`;
-        document.getElementById('nickname-input').value = this.state.nickname;
-        
-        this.updateLeaderboard();
-    },
-
-    initLeaderboard() {
-        if (!localStorage.getItem('arrows_leaderboard')) {
-            // Create demo leaderboard data
-            const demoData = [
-                { name: 'ArrowMaster', levels: 45, coins: 900, time: Date.now() - 86400000 },
-                { name: 'QuickShot', levels: 38, coins: 760, time: Date.now() - 172800000 },
-                { name: 'ProPlayer', levels: 32, coins: 640, time: Date.now() - 259200000 },
-                { name: 'SmartHunter', levels: 28, coins: 560, time: Date.now() - 345600000 },
-                { name: 'SwiftAim', levels: 25, coins: 500, time: Date.now() - 432000000 },
-            ];
-            localStorage.setItem('arrows_leaderboard', JSON.stringify(demoData));
-        }
-    },
-
-    updateLeaderboard() {
-        const leaderboard = JSON.parse(localStorage.getItem('arrows_leaderboard') || '[]');
-        
-        // Add current player to leaderboard if not already there or update
-        const playerIndex = leaderboard.findIndex(p => p.name === this.state.nickname);
-        if (playerIndex === -1) {
-            leaderboard.push({
-                name: this.state.nickname,
-                levels: this.state.maxLvl - 1,
-                coins: this.state.coins,
-                time: Date.now()
-            });
-        } else {
-            leaderboard[playerIndex] = {
-                name: this.state.nickname,
-                levels: this.state.maxLvl - 1,
-                coins: this.state.coins,
-                time: Date.now()
-            };
+    showStatsScreen() {
+        if (!this.state.tgConnected) {
+            document.getElementById('stats-card').style.display = 'none';
+            document.getElementById('stats-loading').style.display = 'none';
+            document.getElementById('leaderboard-loading').style.display = 'none';
+            document.getElementById('leaderboard-list').style.display = 'none';
+            document.getElementById('leaderboard-error').style.display = 'block';
+            document.getElementById('leaderboard-error').innerText = this.trans[this.state.lang].connect;
+            return;
         }
         
-        // Sort by levels (descending), then by coins (descending)
-        leaderboard.sort((a, b) => {
-            if (b.levels !== a.levels) return b.levels - a.levels;
-            if (b.coins !== a.coins) return b.coins - a.coins;
-            return a.time - b.time;
-        });
+        document.getElementById('stats-loading').style.display = 'flex';
+        document.getElementById('stats-card').style.display = 'none';
         
-        // Keep only top 10
-        const top10 = leaderboard.slice(0, 10);
-        localStorage.setItem('arrows_leaderboard', JSON.stringify(top10));
-        
-        // Render leaderboard
-        const list = document.getElementById('leaderboard-list');
-        list.innerHTML = '';
-        const t = this.trans[this.state.lang];
-        
-        top10.forEach((player, index) => {
-            const row = document.createElement('div');
-            row.className = `leader-row ${player.name === this.state.nickname ? 'leader-you' : ''}`;
+        // Update stats
+        setTimeout(() => {
+            document.getElementById('stats-levels').innerText = this.state.maxLvl - 1;
+            document.getElementById('stats-coins').innerText = this.state.coins;
+            document.getElementById('stats-skins').innerText = this.state.skins.length;
+            document.getElementById('stats-rank').innerText = '#?'; // Would come from server
             
-            const rank = document.createElement('div');
-            rank.className = 'leader-rank';
-            rank.innerHTML = index === 0 ? '👑' : index === 1 ? '🥈' : index === 2 ? '🥉' : (index + 1);
+            document.getElementById('stats-loading').style.display = 'none';
+            document.getElementById('stats-card').style.display = 'block';
             
-            const name = document.createElement('div');
-            name.className = 'leader-name';
-            name.innerText = player.name;
+            // Load leaderboard
+            this.loadLeaderboard();
+        }, 500);
+    },
+
+    connectTelegram() {
+        // In a real implementation, this would open Telegram WebApp
+        // For demo purposes, we'll simulate a connection
+        if (!this.state.tgUserId) {
+            // Generate a fake user ID for demo
+            this.state.tgUserId = Math.floor(Math.random() * 1000000);
+            this.state.tgUsername = `Player${this.state.tgUserId}`;
+            this.state.tgConnected = true;
             
-            const levels = document.createElement('div');
-            levels.className = 'leader-levels';
-            levels.innerText = `${player.levels} ${t.levels}`;
+            // Load demo data
+            this.state.coins = 100;
+            this.state.maxLvl = 5;
+            this.state.skins = ['default', 'fire'];
             
-            row.appendChild(rank);
-            row.appendChild(name);
-            row.appendChild(levels);
-            list.appendChild(row);
-        });
+            this.updateUI();
+            this.save();
+            
+            alert('Connected to Telegram (demo mode)!');
+        }
     },
 
     playAudio(type) {
@@ -789,13 +1007,21 @@ const App = {
             const track = Geo.getTrackForDirection(a.dir, arrowSize);
             const initialPath = Geo.getSegmentPath(track, 0, arrowSize * 0.4);
             
+            // Apply selected skin color
+            const skinColor = this.getSkinColor(this.state.selectedSkin);
+            
             wrap.innerHTML = `<svg class="arrow-svg" viewBox="0 0 ${arrowSize} ${arrowSize}">
-                <path class="p-line" d="${initialPath.d}" />
-                <polygon class="p-head" points="-6,-6 6,0 -6,6" transform="translate(${initialPath.head.x},${initialPath.head.y}) rotate(${initialPath.head.angle})"/>
+                <path class="p-line" d="${initialPath.d}" style="stroke: ${skinColor}" />
+                <polygon class="p-head" points="-6,-6 6,0 -6,6" transform="translate(${initialPath.head.x},${initialPath.head.y}) rotate(${initialPath.head.angle})" style="fill: ${skinColor}"/>
             </svg>`;
             wrap.onclick = () => this.move(a, wrap, arrowSize);
             b.appendChild(wrap);
         });
+    },
+
+    getSkinColor(skinId) {
+        const skin = ShopItems.arrowSkins.find(s => s.id === skinId);
+        return skin ? skin.color : '#003366';
     },
 
     addGridLines(board, boardSize) {
@@ -946,10 +1172,6 @@ const App = {
         const data = this.state.savedLevels[this.curNum];
         let hit = data.find(o => !o.solved && o.id !== a.id && this.checkCollision(a, o, this.boardSize));
         
-        // Update stats
-        this.state.stats.totalClicks++;
-        if (!hit) this.state.stats.correctClicks++;
-        
         const line = el.querySelector('.p-line');
         const head = el.querySelector('.p-head');
         const track = Geo.getTrackForDirection(a.dir, arrowSize);
@@ -1012,14 +1234,16 @@ const App = {
         // Add coins
         const coinsEarned = 20;
         this.state.coins += coinsEarned;
-        this.state.stats.totalCoins += coinsEarned;
-        this.state.stats.totalLevels++;
         
         if(this.curNum === this.state.maxLvl) this.state.maxLvl++;
         
         this.save();
         this.updateUI();
-        this.updateLeaderboard();
+        
+        // Update score on server if connected
+        if (this.state.tgConnected) {
+            this.updateScore();
+        }
         
         // Show coins animation
         this.showCoinsAnimation(coinsEarned);
@@ -1105,29 +1329,6 @@ const App = {
             d.style.cssText = "background:white; aspect-ratio:1; border-radius:10px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:var(--c-blue); cursor:pointer; box-shadow:0 2px 5px rgba(0,0,0,0.05);";
             d.innerText = i; d.onclick = () => this.play(i); g.appendChild(d);
         }
-    },
-
-    changeNickname() {
-        const input = document.getElementById('nickname-input');
-        const newNickname = input.value.trim();
-        
-        if (newNickname.length < 3) {
-            alert('Nickname must be at least 3 characters long');
-            return;
-        }
-        
-        if (newNickname.length > 20) {
-            alert('Nickname must be less than 20 characters');
-            return;
-        }
-        
-        this.state.nickname = newNickname;
-        this.save();
-        this.updateUI();
-        this.updateLeaderboard();
-        
-        // Show confirmation
-        alert('Nickname changed successfully!');
     },
 
     toggle(k) { this.state[k] = !this.state[k]; this.save(); this.updateUI(); },
