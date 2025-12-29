@@ -5,7 +5,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)  # Разрешаем запросы с GitHub Pages
+CORS(app)  #Разрешаем запросы с GitHub Pages
 
 # Путь к файлу данных
 DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'users_data.json')
