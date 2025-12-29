@@ -2,49 +2,46 @@
 # -*- coding: utf-8 -*-
 
 """
-Telegram Bot for Arrows Pro Ultra Game
-Author: Your Name
+Arrows Pro Ultra Bot - Полная версия без библиотек
+Работает на чистом Python + requests
 """
 
+import requests
+import time
+import json
 import logging
-import asyncio
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
-from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler, MessageHandler, filters
-from telegram.constants import ParseMode
+from datetime import datetime
+import threading
 
 # ====================== КОНФИГУРАЦИЯ ======================
 BOT_TOKEN = "8124600551:AAHYE9GXQHmc3bAe1kABfqHBmmOKqQQliWU"
-GAME_URL = "https://7fq259fwxr-byte.github.io/arrows-game/"  # Измените на ваш реальный URL
-SUPPORT_BOT = "@arrow_game_support_bot"  # Бот поддержки
+GAME_URL = "https://7fq259fwxr-byte.github.io/arrows-game/"
+SUPPORT_BOT = "@arrow_game_support_bot"
 
 # ====================== ЛОГИРОВАНИЕ ======================
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO,
-    handlers=[
-        logging.FileHandler('bot.log', encoding='utf-8'),
-        logging.StreamHandler()
-    ]
+    level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
 # ====================== ТЕКСТЫ СООБЩЕНИЙ ======================
 WELCOME_MESSAGE = f"""
-🎮 *Добро пожаловать в Arrows Pro Ultra!* 
+🎮 *Arrows Pro Ultra v19*
 
-*ИГРА В СТРЕЛОЧКИ* - увлекательная головоломка, где нужно убирать стрелки с поля, не допуская их столкновений.
+*Увлекательная головоломка со стрелками!*
 
 🌟 *ОСОБЕННОСТИ:*
 • 100+ уровней с растущей сложностью
 • Динамическое увеличение игрового поля
 • Система жизней и восстановления
 • Эффекты победы с конфетти
-• Поддержка русского, английского и китайского языков
+• Поддержка 3 языков
 • Работает офлайн после загрузки
 
 📱 *КАК ЗАПУСТИТЬ НА iOS:*
-1. Нажмите кнопку "🎮 НАЧАТЬ ИГРУ" ниже
-2. В открывшемся окне нажмите ⋯ (в правом верхнем углу)
+1. Нажмите кнопку "🎮 НАЧАТЬ ИГРУ"
+2. В открывшемся окне нажмите ⋯
 3. Выберите "На экран 'Домой'"
 4. Нажмите "Добавить"
 
@@ -73,10 +70,10 @@ HELP_MESSAGE = f"""
 A: Используйте Safari браузер и добавьте на домашний экран.
 
 *Q: Прогресс не сохраняется?*
-A: Игра использует localStorage браузера. Не очищайте данные сайта.
+A: Игра использует localStorage браузера.
 
 *Q: Как играть?*
-A: Нажимайте на стрелки в правильном порядке, чтобы избежать столкновений.
+A: Нажимайте на стрелки в правильном порядке.
 
 *Q: Нашел баг или есть предложение?*
 A: Напишите в поддержку: {SUPPORT_BOT}
@@ -95,7 +92,6 @@ STATS_MESSAGE = f"""
 
 🎯 *ТЕХНИЧЕСКИЕ ХАРАКТЕРИСТИКИ:*
 • Платформа: Web (PWA)
-• Размер: ~50KB
 • Совместимость: iOS 12+, Android 8+
 • Офлайн-режим: Да
 
@@ -103,130 +99,206 @@ STATS_MESSAGE = f"""
 • Исправлена генерация уровней
 • Добавлены новые эффекты
 • Улучшена производительность
-• Исправлены ошибки на iOS
 
 🌟 *Игра полностью бесплатна и без рекламы!*
 
 🆘 *Поддержка:* {SUPPORT_BOT}
 """
 
+# ====================== ФУНКЦИИ ДЛЯ РАБОТЫ С TELEGRAM API ======================
+
+def send_message(chat_id, text, reply_markup=None, parse_mode="Markdown"):
+    """Отправка сообщения в Telegram"""
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": parse_mode,
+        "disable_web_page_preview": True
+    }
+    
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
+    
+    try:
+        response = requests.post(url, json=payload, timeout=10)
+        return response.json()
+    except Exception as e:
+        logger.error(f"Ошибка отправки сообщения: {e}")
+        return None
+
+def edit_message_text(chat_id, message_id, text, reply_markup=None, parse_mode="Markdown"):
+    """Редактирование сообщения"""
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
+    
+    payload = {
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "text": text,
+        "parse_mode": parse_mode,
+        "disable_web_page_preview": True
+    }
+    
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
+    
+    try:
+        response = requests.post(url, json=payload, timeout=10)
+        return response.json()
+    except Exception as e:
+        logger.error(f"Ошибка редактирования сообщения: {e}")
+        return None
+
+def answer_callback_query(callback_query_id, text=None, show_alert=False):
+    """Ответ на callback запрос"""
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/answerCallbackQuery"
+    
+    payload = {
+        "callback_query_id": callback_query_id
+    }
+    
+    if text:
+        payload["text"] = text
+    
+    if show_alert:
+        payload["show_alert"] = True
+    
+    try:
+        response = requests.post(url, json=payload, timeout=10)
+        return response.json()
+    except Exception as e:
+        logger.error(f"Ошибка ответа на callback: {e}")
+        return None
+
+def get_updates(offset=None, timeout=30):
+    """Получение обновлений от Telegram"""
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
+    
+    params = {
+        "timeout": timeout,
+        "allowed_updates": ["message", "callback_query"]
+    }
+    
+    if offset:
+        params["offset"] = offset
+    
+    try:
+        response = requests.get(url, params=params, timeout=timeout + 5)
+        if response.status_code == 200:
+            return response.json()
+    except Exception as e:
+        logger.error(f"Ошибка получения обновлений: {e}")
+    
+    return {"ok": False, "result": []}
+
+# ====================== ФУНКЦИИ ДЛЯ СОЗДАНИЯ КЛАВИАТУР ======================
+
+def create_main_keyboard():
+    """Создание главной клавиатуры"""
+    keyboard = {
+        "inline_keyboard": [
+            [
+                {
+                    "text": "🎮 НАЧАТЬ ИГРУ",
+                    "web_app": {"url": GAME_URL}
+                }
+            ],
+            [
+                {"text": "📊 Статистика", "callback_data": "stats"},
+                {"text": "❓ Помощь", "callback_data": "help"}
+            ],
+            [
+                {"text": "🆘 Поддержка", "url": f"https://t.me/{SUPPORT_BOT[1:]}"},
+                {"text": "⭐ Оценить", "callback_data": "rate"}
+            ]
+        ]
+    }
+    return keyboard
+
+def create_game_keyboard():
+    """Клавиатура для игры"""
+    keyboard = {
+        "inline_keyboard": [
+            [
+                {"text": "🚀 ЗАПУСТИТЬ ИГРУ", "web_app": {"url": GAME_URL}}
+            ]
+        ]
+    }
+    return keyboard
+
+def create_support_keyboard():
+    """Клавиатура для поддержки"""
+    keyboard = {
+        "inline_keyboard": [
+            [
+                {"text": "📨 Написать в поддержку", "url": f"https://t.me/{SUPPORT_BOT[1:]}"}
+            ],
+            [
+                {"text": "📋 Шаблон сообщения", "callback_data": "support_template"}
+            ],
+            [
+                {"text": "🎮 Вернуться к игре", "web_app": {"url": GAME_URL}}
+            ]
+        ]
+    }
+    return keyboard
+
+def create_back_to_game_keyboard():
+    """Клавиатура 'Вернуться к игре'"""
+    keyboard = {
+        "inline_keyboard": [
+            [
+                {"text": "🎮 Вернуться к игре", "web_app": {"url": GAME_URL}}
+            ]
+        ]
+    }
+    return keyboard
+
 # ====================== ОБРАБОТЧИКИ КОМАНД ======================
 
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик команды /start"""
-    user = update.effective_user
+def handle_start_command(chat_id, user_name, message_id=None):
+    """Обработка команды /start"""
+    logger.info(f"Пользователь {chat_id} ({user_name}) запустил бота")
     
-    logger.info(f"User {user.id} ({user.username}) started the bot")
+    keyboard = create_main_keyboard()
+    text = f"Привет, {user_name}! 👋\n\n{WELCOME_MESSAGE}"
     
-    # Создаем клавиатуру с Web App кнопкой
-    keyboard = [
-        [InlineKeyboardButton(
-            text="🎮 НАЧАТЬ ИГРУ",
-            web_app=WebAppInfo(url=GAME_URL)
-        )],
-        [
-            InlineKeyboardButton("📊 Статистика", callback_data='stats'),
-            InlineKeyboardButton("❓ Помощь", callback_data='help')
-        ],
-        [
-            InlineKeyboardButton("🆘 Поддержка", url=f"https://t.me/{SUPPORT_BOT[1:]}"),
-            InlineKeyboardButton("⭐ Оценить", callback_data='rate')
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    if message_id:
+        return edit_message_text(chat_id, message_id, text, keyboard)
+    else:
+        return send_message(chat_id, text, keyboard)
+
+def handle_help_command(chat_id, message_id=None):
+    """Обработка команды /help"""
+    keyboard = create_support_keyboard()
     
-    # Отправляем приветственное сообщение
-    await update.message.reply_text(
-        text=f"Привет, {user.first_name}! 👋\n\n{WELCOME_MESSAGE}",
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=reply_markup,
-        disable_web_page_preview=True
-    )
+    if message_id:
+        return edit_message_text(chat_id, message_id, HELP_MESSAGE, keyboard)
+    else:
+        return send_message(chat_id, HELP_MESSAGE, keyboard)
 
-async def game_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик команды /game - прямая ссылка на игру"""
-    keyboard = [
-        [InlineKeyboardButton("🚀 ЗАПУСТИТЬ ИГРУ", web_app=WebAppInfo(url=GAME_URL))],
-        [InlineKeyboardButton("🆘 Поддержка", url=f"https://t.me/{SUPPORT_BOT[1:]}")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+def handle_game_command(chat_id, message_id=None):
+    """Обработка команды /game"""
+    keyboard = create_game_keyboard()
+    text = "Нажмите кнопку ниже, чтобы сразу начать игру:"
     
-    await update.message.reply_text(
-        "Нажмите кнопку ниже, чтобы сразу начать игру:",
-        reply_markup=reply_markup
-    )
+    if message_id:
+        return edit_message_text(chat_id, message_id, text, keyboard)
+    else:
+        return send_message(chat_id, text, keyboard)
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик команды /help"""
-    keyboard = [
-        [InlineKeyboardButton("🆘 Написать в поддержку", url=f"https://t.me/{SUPPORT_BOT[1:]}")],
-        [InlineKeyboardButton("🎮 Открыть игру", web_app=WebAppInfo(url=GAME_URL))]
-    ]
+def handle_stats_command(chat_id, message_id=None):
+    """Обработка команды /stats"""
+    keyboard = create_back_to_game_keyboard()
     
-    await update.message.reply_text(
-        text=HELP_MESSAGE,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        disable_web_page_preview=True
-    )
+    if message_id:
+        return edit_message_text(chat_id, message_id, STATS_MESSAGE, keyboard)
+    else:
+        return send_message(chat_id, STATS_MESSAGE, keyboard)
 
-async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик команды /stats"""
-    keyboard = [
-        [InlineKeyboardButton("🆘 Поддержка", url=f"https://t.me/{SUPPORT_BOT[1:]}")],
-        [InlineKeyboardButton("🎮 Вернуться к игре", web_app=WebAppInfo(url=GAME_URL))]
-    ]
-    
-    await update.message.reply_text(
-        text=STATS_MESSAGE,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        disable_web_page_preview=True
-    )
-
-async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик команды /about"""
-    about_text = f"""
-🎮 *Arrows Pro Ultra v19*
-
-*РАЗРАБОТЧИК:* Ваше Имя
-*ВЕРСИЯ:* 1.0.0
-*ОБНОВЛЕНО:* 2024
-
-*ТЕХНОЛОГИИ:*
-• HTML5, CSS3, JavaScript
-• PWA (Progressive Web App)
-• GitHub Pages для хостинга
-
-*ОСОБЕННОСТИ:*
-• Адаптивный дизайн
-• Кроссплатформенность
-• Офлайн-режим
-• Бесплатно навсегда
-
-🆘 *Техническая поддержка:* {SUPPORT_BOT}
-🔗 *GitHub:* github.com/ваш_логин
-
-*Спасибо за игру!* ❤️
-    """
-    
-    keyboard = [[InlineKeyboardButton("🆘 Связаться с поддержкой", url=f"https://t.me/{SUPPORT_BOT[1:]}")]]
-    
-    await update.message.reply_text(
-        text=about_text,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        disable_web_page_preview=True
-    )
-
-async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик команды /support - связь с поддержкой"""
-    keyboard = [
-        [InlineKeyboardButton("📨 Написать в поддержку", url=f"https://t.me/{SUPPORT_BOT[1:]}")],
-        [InlineKeyboardButton("📋 Шаблон сообщения", callback_data='support_template')],
-        [InlineKeyboardButton("🎮 Вернуться к игре", web_app=WebAppInfo(url=GAME_URL))]
-    ]
-    
+def handle_support_command(chat_id, message_id=None):
+    """Обработка команды /support"""
     support_text = f"""
 🆘 *ТЕХНИЧЕСКАЯ ПОДДЕРЖКА*
 
@@ -234,7 +306,6 @@ async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 1. Нажмите кнопку ниже для связи
 2. Опишите проблему подробно
 3. Укажите ваше устройство и браузер
-4. Приложите скриншот (если можно)
 
 *ЧТО УКАЗАТЬ В СООБЩЕНИИ:*
 • Описание проблемы
@@ -248,67 +319,56 @@ async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 • Рабочие дни: Пн-Пт, 10:00-18:00
 
 *БЫСТРАЯ СВЯЗЬ:* {SUPPORT_BOT}
-
-*Можно использовать шаблон ниже:*
-    """
+"""
     
-    await update.message.reply_text(
-        text=support_text,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        disable_web_page_preview=True
-    )
-
-# ====================== ОБРАБОТЧИКИ КНОПОК ======================
-
-async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик нажатий на inline-кнопки"""
-    query = update.callback_query
-    await query.answer()
+    keyboard = create_support_keyboard()
     
-    user = query.from_user
-    logger.info(f"User {user.id} pressed button: {query.data}")
+    if message_id:
+        return edit_message_text(chat_id, message_id, support_text, keyboard)
+    else:
+        return send_message(chat_id, support_text, keyboard)
+
+# ====================== ОБРАБОТЧИКИ CALLBACK КНОПОК ======================
+
+def handle_callback_query(callback_query):
+    """Обработка нажатий на кнопки"""
+    query_id = callback_query["id"]
+    chat_id = callback_query["message"]["chat"]["id"]
+    message_id = callback_query["message"]["message_id"]
+    data = callback_query["data"]
+    user = callback_query["from"]
     
-    if query.data == 'stats':
-        keyboard = [
-            [InlineKeyboardButton("🎮 Вернуться к игре", web_app=WebAppInfo(url=GAME_URL))],
-            [InlineKeyboardButton("🆘 Поддержка", url=f"https://t.me/{SUPPORT_BOT[1:]}")]
-        ]
-        await query.edit_message_text(
-            text=STATS_MESSAGE,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            disable_web_page_preview=True
-        )
+    logger.info(f"Пользователь {user['id']} нажал кнопку: {data}")
+    
+    # Отвечаем на callback
+    answer_callback_query(query_id)
+    
+    if data == "stats":
+        handle_stats_command(chat_id, message_id)
+    
+    elif data == "help":
+        handle_help_command(chat_id, message_id)
+    
+    elif data == "rate":
+        rate_text = "⭐ *Оцените игру!*\n\nЕсли вам нравится игра, поделитесь ей с друзьями!\n\n*Ваша оценка помогает развитию игры!* ❤️\n\nЕсть идеи или нашли баг? Напишите в поддержку!"
         
-    elif query.data == 'help':
-        keyboard = [
-            [InlineKeyboardButton("🎮 Открыть игру", web_app=WebAppInfo(url=GAME_URL))],
-            [InlineKeyboardButton("🆘 Поддержка", url=f"https://t.me/{SUPPORT_BOT[1:]}")]
-        ]
-        await query.edit_message_text(
-            text=HELP_MESSAGE,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            disable_web_page_preview=True
-        )
+        keyboard = {
+            "inline_keyboard": [
+                [
+                    {"text": "🎮 Продолжить игру", "web_app": {"url": GAME_URL}}
+                ],
+                [
+                    {"text": "📢 Поделиться", "url": "https://t.me/share/url?url=https://t.me/ArrowsProUltraBot&text=🎮 Попробуй крутую игру Arrows Pro Ultra!"}
+                ],
+                [
+                    {"text": "🆘 Сообщить о проблеме", "url": f"https://t.me/{SUPPORT_BOT[1:]}"}
+                ]
+            ]
+        }
         
-    elif query.data == 'rate':
-        keyboard = [
-            [InlineKeyboardButton("🎮 Продолжить игру", web_app=WebAppInfo(url=GAME_URL))],
-            [InlineKeyboardButton("📢 Поделиться", url="https://t.me/share/url?url=https://t.me/ArrowsProUltraBot&text=🎮 Попробуй крутую игру Arrows Pro Ultra!")],
-            [InlineKeyboardButton("🆘 Сообщить о проблеме", url=f"https://t.me/{SUPPORT_BOT[1:]}")]
-        ]
-        await query.edit_message_text(
-            text="⭐ *Оцените игру!*\n\n"
-                 "Если вам нравится игра, поделитесь ей с друзьями!\n\n"
-                 "*Ваша оценка помогает развитию игры!* ❤️\n\n"
-                 "Нашли баг или есть предложение? Напишите в поддержку!",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-        
-    elif query.data == 'support_template':
+        edit_message_text(chat_id, message_id, rate_text, keyboard)
+    
+    elif data == "support_template":
         template = f"""
 *ШАБЛОН ДЛЯ ТЕХПОДДЕРЖКИ:*
 
@@ -323,54 +383,36 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 • Уровень игры: [Номер уровня]
 • Описание бага: [Подробно]
 
-*Ожидаемое поведение:* [Как должно работать]
-
-*Контакт для связи:* @{user.username if user.username else 'не указан'}
+*Контакт для связи:* @{user.get('username', 'не указан')}
 
 ---
 Отправьте это сообщение в поддержку: {SUPPORT_BOT}
         """
         
-        keyboard = [
-            [InlineKeyboardButton("📨 Отправить в поддержку", url=f"https://t.me/{SUPPORT_BOT[1:]}?text=Проблема с игрой Arrows Pro Ultra")],
-            [InlineKeyboardButton("🎮 Вернуться к игре", web_app=WebAppInfo(url=GAME_URL))]
-        ]
+        keyboard = {
+            "inline_keyboard": [
+                [
+                    {"text": "📨 Отправить в поддержку", "url": f"https://t.me/{SUPPORT_BOT[1:]}?text=Проблема с игрой Arrows Pro Ultra"}
+                ],
+                [
+                    {"text": "🎮 Вернуться к игре", "web_app": {"url": GAME_URL}}
+                ]
+            ]
+        }
         
-        await query.edit_message_text(
-            text=template,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+        edit_message_text(chat_id, message_id, template, keyboard)
 
-# ====================== ОБРАБОТЧИК ТЕКСТОВЫХ СООБЩЕНИЙ ======================
+# ====================== ОБРАБОТКА ТЕКСТОВЫХ СООБЩЕНИЙ ======================
 
-async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик текстовых сообщений"""
-    text = update.message.text.lower()
-    user = update.effective_user
+def handle_text_message(chat_id, text, user_name):
+    """Обработка текстовых сообщений"""
+    text_lower = text.lower()
     
     # Ключевые слова для определения проблем
-    error_keywords = [
-        'ошибка', 'баг', 'не работает', 'сломалось', 'глюк', 'глючит',
-        'проблема', 'не открывается', 'зависает', 'вылетает', 'crash',
-        'error', 'bug', 'not working', 'broken', 'glitch', 'problem',
-        'не могу', 'не получается', 'помогите', 'help', 'support'
-    ]
+    error_keywords = ['ошибка', 'баг', 'не работает', 'сломалось', 'глюк', 'проблема']
     
-    game_keywords = ['игра', 'game', 'arrows', 'стрелки', 'начать', 'start']
-    thanks_keywords = ['спасибо', 'thanks', 'благодарю', 'круто', 'класс', 'супер']
-    
-    if any(word in text for word in error_keywords):
-        # Пользователь сообщает о проблеме
-        logger.warning(f"User {user.id} reported a problem: {text}")
-        
-        keyboard = [
-            [InlineKeyboardButton("🆘 Написать в поддержку", url=f"https://t.me/{SUPPORT_BOT[1:]}")],
-            [InlineKeyboardButton("📋 Шаблон для поддержки", callback_data='support_template')],
-            [InlineKeyboardButton("🔄 Перезапустить игру", web_app=WebAppInfo(url=GAME_URL))]
-        ]
-        
-        reply_text = f"""
+    if any(word in text_lower for word in error_keywords):
+        error_text = f"""
 ⚠️ *Похоже, у вас возникла проблема с игрой!*
 
 Для быстрого решения:
@@ -378,144 +420,116 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 2. Опишите проблему подробно
 3. Укажите устройство и браузер
 
-*Частые решения:*
-• Очистите кэш браузера
-• Перезагрузите страницу
-• Обновите браузер
-• Добавьте игру на домашний экран (iOS)
-
 *Поддержка ответит в течение 24 часов!*
         """
         
-        await update.message.reply_text(
-            text=reply_text,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            disable_web_page_preview=True
-        )
+        keyboard = {
+            "inline_keyboard": [
+                [
+                    {"text": "🆘 Написать в поддержку", "url": f"https://t.me/{SUPPORT_BOT[1:]}"}
+                ],
+                [
+                    {"text": "📋 Шаблон для поддержки", "callback_data": "support_template"}
+                ]
+            ]
+        }
+        
+        send_message(chat_id, error_text, keyboard)
     
-    elif any(word in text for word in game_keywords):
-        keyboard = [[InlineKeyboardButton("🎮 ИГРАТЬ СЕЙЧАС", web_app=WebAppInfo(url=GAME_URL))]]
-        await update.message.reply_text(
-            "Хотите поиграть? Нажмите кнопку ниже! 👇",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-    
-    elif any(word in text for word in thanks_keywords):
-        keyboard = [[InlineKeyboardButton("⭐ Оценить игру", callback_data='rate')]]
-        await update.message.reply_text(
-            "Спасибо за отзыв! Рады, что вам нравится! ❤️\n"
-            "Не забудьте поделиться игрой с друзьями!",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+    elif 'спасибо' in text_lower or 'thanks' in text_lower:
+        keyboard = {
+            "inline_keyboard": [
+                [
+                    {"text": "⭐ Оценить игру", "callback_data": "rate"}
+                ]
+            ]
+        }
+        send_message(chat_id, "Спасибо за отзыв! Рады, что вам нравится! ❤️", keyboard)
     
     else:
-        # Общий ответ на другие сообщения
-        keyboard = [
-            [InlineKeyboardButton("🎮 Открыть игру", web_app=WebAppInfo(url=GAME_URL))],
-            [InlineKeyboardButton("❓ Помощь", callback_data='help')],
-            [InlineKeyboardButton("🆘 Поддержка", url=f"https://t.me/{SUPPORT_BOT[1:]}")]
-        ]
-        
-        await update.message.reply_text(
-            f"Я бот для игры Arrows Pro Ultra! 🎮\n\n"
-            f"Используйте команды или кнопки для навигации.\n"
-            f"Если есть проблемы - пишите в поддержку: {SUPPORT_BOT}",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-
-# ====================== ОБРАБОТЧИК ОШИБОК ======================
-
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик ошибок бота"""
-    logger.error(f"Exception while handling an update: {context.error}")
-    
-    try:
-        # Пытаемся отправить сообщение об ошибке пользователю
-        if update and update.effective_message:
-            keyboard = [
-                [InlineKeyboardButton("🆘 Сообщить об ошибке", url=f"https://t.me/{SUPPORT_BOT[1:]}")],
-                [InlineKeyboardButton("🔄 Перезапустить бота", callback_data='refresh')]
-            ]
-            
-            error_text = f"""
-⚠️ *Произошла внутренняя ошибка бота!*
-
-*Что делать:*
-1. Попробуйте команду /start
-2. Если ошибка повторяется, сообщите в поддержку
-3. Опишите, что вы делали перед ошибкой
-
-*Техническая поддержка:* {SUPPORT_BOT}
-
-*Приносим извинения за неудобства!*
-            """
-            
-            await update.effective_message.reply_text(
-                text=error_text,
-                parse_mode=ParseMode.MARKDOWN,
-                reply_markup=InlineKeyboardMarkup(keyboard),
-                disable_web_page_preview=True
-            )
-    except Exception as e:
-        logger.error(f"Failed to send error message: {e}")
+        keyboard = create_main_keyboard()
+        send_message(chat_id, 
+                    f"Я бот для игры Arrows Pro Ultra! 🎮\n\n"
+                    f"Используйте команды или кнопки для навигации.\n"
+                    f"Если есть проблемы - пишите в поддержку: {SUPPORT_BOT}", 
+                    keyboard)
 
 # ====================== ОСНОВНАЯ ФУНКЦИЯ ======================
 
-def main() -> None:
-    """Запуск бота"""
-    # Создаем Application
-    application = Application.builder().token(BOT_TOKEN).build()
-    
-    # Добавляем обработчики команд
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("game", game_command))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("stats", stats_command))
-    application.add_handler(CommandHandler("about", about_command))
-    application.add_handler(CommandHandler("support", support_command))
-    
-    # Добавляем обработчик кнопок
-    application.add_handler(CallbackQueryHandler(button_callback))
-    
-    # Добавляем обработчик текстовых сообщений
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))
-    
-    # Добавляем обработчик ошибок
-    application.add_error_handler(error_handler)
-    
-    # Запускаем бота
+def main():
+    """Основная функция бота"""
     print("=" * 60)
-    print("🤖 БОТ ARROWS PRO ULTRA ЗАПУЩЕН!")
+    print("🤖 БОТ ARROWS PRO ULTRA ЗАПУЩЕН (без библиотек!)")
     print("=" * 60)
-    print(f"🔗 Ссылка на бота: https://t.me/{application.bot.username}")
-    print(f"🎮 URL игры: {GAME_URL}")
-    print(f"🆘 Бот поддержки: {SUPPORT_BOT}")
-    print(f"📝 Логи пишутся в файл: bot.log")
+    print(f"🎮 Игра: {GAME_URL}")
+    print(f"🆘 Поддержка: {SUPPORT_BOT}")
     print("=" * 60)
-    print("НАСТРОЙКИ ПОДДЕРЖКИ:")
-    print(f"• Все ошибки перенаправляются в: {SUPPORT_BOT}")
-    print("• Пользователи получают шаблон для обращения")
-    print("• Кнопка поддержки в каждом меню")
-    print("=" * 60)
-    print("Нажмите Ctrl+C для остановки")
+    print("⏳ Ожидание сообщений...")
     print("=" * 60)
     
-    # Запускаем polling
-    application.run_polling(
-        allowed_updates=Update.ALL_TYPES,
-        drop_pending_updates=True
-    )
+    last_update_id = None
+    
+    while True:
+        try:
+            # Получаем обновления
+            updates = get_updates(last_update_id, timeout=30)
+            
+            if updates.get("ok") and updates.get("result"):
+                for update in updates["result"]:
+                    last_update_id = update["update_id"] + 1
+                    
+                    # Обработка callback запросов (нажатия на кнопки)
+                    if "callback_query" in update:
+                        handle_callback_query(update["callback_query"])
+                    
+                    # Обработка текстовых сообщений
+                    elif "message" in update:
+                        message = update["message"]
+                        chat_id = message["chat"]["id"]
+                        user_name = message["chat"].get("first_name", "Пользователь")
+                        
+                        # Текстовые сообщения
+                        if "text" in message:
+                            text = message["text"]
+                            
+                            # Обработка команд
+                            if text.startswith("/"):
+                                command = text.split()[0].lower()
+                                
+                                if command == "/start":
+                                    handle_start_command(chat_id, user_name)
+                                
+                                elif command == "/help":
+                                    handle_help_command(chat_id)
+                                
+                                elif command == "/game":
+                                    handle_game_command(chat_id)
+                                
+                                elif command == "/stats":
+                                    handle_stats_command(chat_id)
+                                
+                                elif command == "/support":
+                                    handle_support_command(chat_id)
+                                
+                                else:
+                                    handle_text_message(chat_id, text, user_name)
+                            
+                            # Обычные текстовые сообщения
+                            else:
+                                handle_text_message(chat_id, text, user_name)
+            
+            # Небольшая пауза между запросами
+            time.sleep(0.1)
+            
+        except KeyboardInterrupt:
+            print("\n\n🛑 Бот остановлен пользователем")
+            break
+        
+        except Exception as e:
+            logger.error(f"Ошибка в основном цикле: {e}")
+            time.sleep(5)  # Пауза при ошибке
 
-# ====================== ТОЧКА ВХОДА ======================
+# ====================== ЗАПУСК ======================
 
-if __name__ == '__main__':
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("\n\n🛑 Бот остановлен пользователем")
-        logger.info("Bot stopped by user")
-    except Exception as e:
-        logger.error(f"Fatal error: {e}")
-        print(f"❌ Критическая ошибка: {e}")
-        print(f"🆘 Сообщите в поддержку: {SUPPORT_BOT}")
+if __name__ == "__main__":
+    main()
