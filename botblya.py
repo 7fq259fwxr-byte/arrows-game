@@ -1,318 +1,444 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-"""
-Arrows Pro Ultra Bot - Исправленная версия для PythonAnywhere
-"""
-
 import requests
-import time
 import json
+import time
 import logging
+from flask import Flask, request, jsonify
+import threading
+import os
 
-# ====================== КОНФИГУРАЦИЯ ======================
+app = Flask(__name__)
+
+# Конфигурация
 BOT_TOKEN = "8124600551:AAHYE9GXQHmc3bAe1kABfqHBmmOKqQQliWU"
-GAME_URL = "https://7fq259fwxr-byte.github.io/arrows-game/"
-SUPPORT_BOT = "@arrow_game_support_bot"
+GAME_URL = "https://ваш-сайт.github.io/arrows-game/"  # Замените на ваш
 
-# ====================== ЛОГИРОВАНИЕ ======================
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+# База данных
+DATA_FILE = "users_data.json"
 
-# ====================== ФУНКЦИИ ДЛЯ TELEGRAM API ======================
+def load_data():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {"users": {}, "leaderboard": [], "shop_items": initialize_shop()}
 
-def telegram_api(method, data=None):
-    """Универсальная функция для вызовов Telegram API"""
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/{method}"
+def save_data(data):
+    with open(DATA_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+def initialize_shop():
+    return {
+        "arrow_skins": [
+            {"id": "default", "name": "Classic", "price": 0},
+            {"id": "fire", "name": "Fire", "price": 100},
+            {"id": "ice", "name": "Ice", "price": 150},
+            {"id": "gold", "name": "Golden", "price": 300},
+            {"id": "neon", "name": "Neon", "price": 200},
+            {"id": "rainbow", "name": "Rainbow", "price": 500}
+        ],
+        "board_themes": [
+            {"id": "default", "name": "Classic", "price": 0},
+            {"id": "wood", "name": "Wood", "price": 200},
+            {"id": "space", "name": "Space", "price": 300},
+            {"id": "marble", "name": "Marble", "price": 250},
+            {"id": "night", "name": "Night", "price": 180},
+            {"id": "ocean", "name": "Ocean", "price": 220}
+        ],
+        "effects": [
+            {"id": "none", "name": "No Effects", "price": 0},
+            {"id": "sparkles", "name": "Sparkles", "price": 150},
+            {"id": "confetti", "name": "Confetti", "price": 200},
+            {"id": "fireworks", "name": "Fireworks", "price": 300},
+            {"id": "glow", "name": "Glow", "price": 100},
+            {"id": "trail", "name": "Trail", "price": 120}
+        ]
+    }
+
+# API для игры
+@app.route('/api/get_user_data', methods=['POST'])
+def get_user_data():
+    """Получение данных пользователя для игры"""
+    data = request.json
+    user_id = data.get('user_id')
     
-    try:
-        # Используем таймауты и повторные попытки
-        for attempt in range(3):
-            try:
-                if data:
-                    response = requests.post(url, json=data, timeout=10)
-                else:
-                    response = requests.get(url, timeout=10)
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    if result.get("ok"):
-                        return result
-                    else:
-                        logger.error(f"Telegram API error: {result}")
-                        time.sleep(2)  # Ждем перед повторной попыткой
-                else:
-                    logger.error(f"HTTP error {response.status_code}")
-                    time.sleep(2)
-                    
-            except requests.exceptions.Timeout:
-                logger.warning(f"Timeout on attempt {attempt + 1}")
-                time.sleep(2)
-            except requests.exceptions.ConnectionError:
-                logger.warning(f"Connection error on attempt {attempt + 1}")
-                time.sleep(2)
-                
-    except Exception as e:
-        logger.error(f"Error in telegram_api: {e}")
+    db = load_data()
     
-    return None
+    if str(user_id) in db["users"]:
+        user_data = db["users"][str(user_id)]
+        return jsonify({
+            "success": True,
+            "coins": user_data.get("coins", 0),
+            "max_level": user_data.get("max_level", 1),
+            "username": user_data.get("username", "Player"),
+            "skins": user_data.get("skins", ["default"]),
+            "selected_skin": user_data.get("selected_skin", "default"),
+            "shop_items": db["shop_items"]
+        })
+    
+    return jsonify({"success": False, "error": "User not found"})
 
-def send_message(chat_id, text, reply_markup=None):
-    """Отправка сообщения"""
-    data = {
+@app.route('/api/update_score', methods=['POST'])
+def update_score():
+    """Обновление счета пользователя"""
+    data = request.json
+    user_id = data.get('user_id')
+    username = data.get('username')
+    new_level = data.get('level')
+    coins_earned = data.get('coins_earned', 0)
+    
+    db = load_data()
+    user_id_str = str(user_id)
+    
+    if user_id_str not in db["users"]:
+        db["users"][user_id_str] = {
+            "username": username,
+            "coins": 0,
+            "max_level": 1,
+            "skins": ["default"],
+            "selected_skin": "default",
+            "purchases": [],
+            "created_at": time.time()
+        }
+    
+    user = db["users"][user_id_str]
+    user["coins"] = user.get("coins", 0) + coins_earned
+    
+    if new_level > user.get("max_level", 1):
+        user["max_level"] = new_level
+    
+    # Обновляем лидерборд
+    update_leaderboard(db, user_id_str, username, user["max_level"])
+    
+    save_data(db)
+    
+    return jsonify({"success": True, "coins": user["coins"]})
+
+@app.route('/api/purchase_item', methods=['POST'])
+def purchase_item():
+    """Покупка предмета в магазине"""
+    data = request.json
+    user_id = data.get('user_id')
+    item_id = data.get('item_id')
+    item_type = data.get('item_type')  # arrow, board, effect
+    
+    db = load_data()
+    user_id_str = str(user_id)
+    
+    if user_id_str not in db["users"]:
+        return jsonify({"success": False, "error": "User not found"})
+    
+    user = db["users"][user_id_str]
+    
+    # Находим предмет в магазине
+    shop_items = db["shop_items"]
+    item = None
+    if item_type == "arrow":
+        item = next((i for i in shop_items["arrow_skins"] if i["id"] == item_id), None)
+    elif item_type == "board":
+        item = next((i for i in shop_items["board_themes"] if i["id"] == item_id), None)
+    elif item_type == "effect":
+        item = next((i for i in shop_items["effects"] if i["id"] == item_id), None)
+    
+    if not item:
+        return jsonify({"success": False, "error": "Item not found"})
+    
+    # Проверяем, не куплен ли уже предмет
+    if item_id in user.get("skins", []):
+        return jsonify({"success": False, "error": "Already purchased"})
+    
+    # Проверяем достаточно ли монет
+    if user["coins"] < item["price"]:
+        return jsonify({"success": False, "error": "Not enough coins"})
+    
+    # Совершаем покупку
+    user["coins"] -= item["price"]
+    if "skins" not in user:
+        user["skins"] = []
+    user["skins"].append(item_id)
+    
+    if "purchases" not in user:
+        user["purchases"] = []
+    user["purchases"].append({
+        "item_id": item_id,
+        "item_type": item_type,
+        "price": item["price"],
+        "timestamp": time.time()
+    })
+    
+    save_data(db)
+    
+    return jsonify({
+        "success": True, 
+        "coins": user["coins"],
+        "skins": user["skins"]
+    })
+
+@app.route('/api/select_item', methods=['POST'])
+def select_item():
+    """Выбор активного предмета"""
+    data = request.json
+    user_id = data.get('user_id')
+    item_id = data.get('item_id')
+    item_type = data.get('item_type')
+    
+    db = load_data()
+    user_id_str = str(user_id)
+    
+    if user_id_str not in db["users"]:
+        return jsonify({"success": False, "error": "User not found"})
+    
+    user = db["users"][user_id_str]
+    
+    # Проверяем, есть ли предмет у пользователя
+    if item_id not in user.get("skins", []):
+        return jsonify({"success": False, "error": "Item not owned"})
+    
+    # Выбираем предмет
+    if item_type == "arrow":
+        user["selected_skin"] = item_id
+    # Для других типов можно добавить аналогично
+    
+    save_data(db)
+    
+    return jsonify({"success": True})
+
+@app.route('/api/leaderboard', methods=['GET'])
+def get_leaderboard():
+    """Получение таблицы лидеров"""
+    db = load_data()
+    
+    # Создаем список для лидерборда
+    leaderboard = []
+    for user_id, user_data in db["users"].items():
+        leaderboard.append({
+            "user_id": user_id,
+            "username": user_data["username"],
+            "score": user_data["max_level"],
+            "coins": user_data["coins"]
+        })
+    
+    # Сортируем по уровню
+    leaderboard.sort(key=lambda x: x["score"], reverse=True)
+    
+    return jsonify({"success": True, "leaderboard": leaderboard[:20]})
+
+def update_leaderboard(db, user_id, username, score):
+    """Обновление лидерборда"""
+    # Ищем пользователя в лидерборде
+    found = False
+    for entry in db["leaderboard"]:
+        if entry["user_id"] == user_id:
+            if score > entry["score"]:
+                entry["score"] = score
+                entry["username"] = username
+                entry["updated_at"] = time.time()
+            found = True
+            break
+    
+    if not found:
+        db["leaderboard"].append({
+            "user_id": user_id,
+            "username": username,
+            "score": score,
+            "updated_at": time.time()
+        })
+    
+    # Сортируем лидерборд
+    db["leaderboard"].sort(key=lambda x: x["score"], reverse=True)
+    # Оставляем только топ-50
+    db["leaderboard"] = db["leaderboard"][:50]
+
+# Telegram бот
+def send_telegram_message(chat_id, text, keyboard=None):
+    """Отправка сообщения в Telegram"""
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    
+    payload = {
         "chat_id": chat_id,
         "text": text,
         "parse_mode": "Markdown",
         "disable_web_page_preview": True
     }
     
-    if reply_markup:
-        data["reply_markup"] = reply_markup
-    
-    return telegram_api("sendMessage", data)
-
-def get_updates(offset=None, timeout=30):
-    """Получение обновлений"""
-    params = {"timeout": timeout}
-    if offset:
-        params["offset"] = offset
+    if keyboard:
+        payload["reply_markup"] = keyboard
     
     try:
-        # Для getUpdates используем GET запрос
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
-        response = requests.get(url, params=params, timeout=timeout + 5)
-        
-        if response.status_code == 200:
-            return response.json()
-        else:
-            logger.error(f"GetUpdates HTTP error: {response.status_code}")
+        response = requests.post(url, json=payload, timeout=10)
+        return response.json()
     except Exception as e:
-        logger.error(f"Error in get_updates: {e}")
+        print(f"Ошибка отправки: {e}")
+        return None
+
+def get_user_stats(user_id):
+    """Получение статистики пользователя"""
+    db = load_data()
+    user_id_str = str(user_id)
     
-    return {"ok": False, "result": []}
-
-def answer_callback_query(callback_query_id):
-    """Ответ на callback запрос"""
-    return telegram_api("answerCallbackQuery", {"callback_query_id": callback_query_id})
-
-# ====================== КЛАВИАТУРЫ ======================
-
-def create_main_keyboard():
-    """Главное меню"""
-    return {
-        "inline_keyboard": [
-            [{"text": "🎮 НАЧАТЬ ИГРУ", "web_app": {"url": GAME_URL}}],
-            [
-                {"text": "📊 Статистика", "callback_data": "stats"},
-                {"text": "❓ Помощь", "callback_data": "help"}
-            ],
-            [{"text": "🆘 Поддержка", "url": f"https://t.me/{SUPPORT_BOT[1:]}"}]
-        ]
-    }
-
-def create_simple_keyboard():
-    """Простая клавиатура для теста"""
-    return {
-        "inline_keyboard": [
-            [{"text": "🎮 ТЕСТ КНОПКИ", "web_app": {"url": GAME_URL}}]
-        ]
-    }
-
-# ====================== ОБРАБОТЧИКИ ======================
-
-def handle_start(chat_id, user_name):
-    """Обработка /start"""
-    logger.info(f"Обработка /start от {chat_id}")
-    
-    keyboard = create_simple_keyboard()  # Начнем с простой клавиатуры
-    
-    message = (
-        f"Привет, {user_name}! 👋\n\n"
-        "🎮 *Arrows Pro Ultra*\n\n"
-        "Нажмите кнопку ниже для запуска игры!\n\n"
-        f"🆘 Поддержка: {SUPPORT_BOT}"
-    )
-    
-    result = send_message(chat_id, message, keyboard)
-    
-    if result:
-        logger.info(f"Сообщение отправлено пользователю {chat_id}")
-        return True
-    else:
-        logger.error(f"Не удалось отправить сообщение пользователю {chat_id}")
-        return False
-
-def handle_callback(callback_query):
-    """Обработка callback кнопок"""
-    try:
-        query_id = callback_query["id"]
-        chat_id = callback_query["message"]["chat"]["id"]
-        data = callback_query["data"]
+    if user_id_str in db["users"]:
+        user = db["users"][user_id_str]
         
-        # Отвечаем на callback
-        answer_callback_query(query_id)
+        # Определяем позицию в лидерборде
+        position = 1
+        for entry in db["leaderboard"]:
+            if entry["user_id"] == user_id_str:
+                break
+            position += 1
         
-        if data == "stats":
-            send_message(chat_id, "📊 Статистика игры...")
-        elif data == "help":
-            send_message(chat_id, "❓ Помощь по игре...")
+        return f"""
+📊 *ВАША СТАТИСТИКА:*
+
+🏆 *Уровень:* {user['max_level']}
+💰 *Монеты:* {user['coins']} 🪙
+🥇 *Место в рейтинге:* #{position}
+🎨 *Скинов:* {len(user.get('skins', ['default']))}
+
+*Продолжайте в том же духе!* 🚀
+        """
+    
+    return "Вы еще не играли. Начните сейчас! 🎮"
+
+def handle_telegram_update(update):
+    """Обработка обновлений Telegram"""
+    if "message" in update:
+        message = update["message"]
+        chat_id = message["chat"]["id"]
+        text = message.get("text", "")
+        user = message["from"]
+        
+        # Сохраняем пользователя
+        db = load_data()
+        user_id_str = str(user["id"])
+        
+        if user_id_str not in db["users"]:
+            username = user.get("username", f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+            if not username:
+                username = f"Player{user_id_str[-4:]}"
+            db["users"][user_id_str] = {
+                "username": username,
+                "coins": 0,
+                "max_level": 1,
+                "skins": ["default"],
+                "selected_skin": "default",
+                "created_at": time.time()
+            }
+            save_data(db)
+        
+        if text == "/start":
+            keyboard = {
+                "inline_keyboard": [[
+                    {"text": "🎮 НАЧАТЬ ИГРУ", "web_app": {"url": GAME_URL}}
+                ]]
+            }
             
-    except Exception as e:
-        logger.error(f"Error in handle_callback: {e}")
+            welcome_text = f"""
+Привет, {user.get('first_name', 'Игрок')}! 👋
 
-# ====================== ОСНОВНОЙ ЦИКЛ ======================
+🎮 *Arrows Pro Ultra* - новая версия с:
+• Системой монет и наград
+• Реальной таблицей лидеров
+• Магазином скинов
+• Прогрессом между уровнями
 
-def test_connection():
-    """Тест соединения с Telegram API"""
-    print("🔍 Тестируем соединение с Telegram API...")
-    
-    try:
-        # Проверяем доступность API
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/getMe"
-        response = requests.get(url, timeout=10)
+*Начните играть и зарабатывайте монеты!* 🪙
+
+🏆 *Ваш прогресс сохраняется автоматически*
+            """
+            
+            send_telegram_message(chat_id, welcome_text, keyboard)
         
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("ok"):
-                bot_name = data["result"]["username"]
-                print(f"✅ Соединение успешно! Бот: @{bot_name}")
-                return True
+        elif text == "/stats":
+            stats_text = get_user_stats(user["id"])
+            keyboard = {
+                "inline_keyboard": [[
+                    {"text": "🎮 ПРОДОЛЖИТЬ ИГРУ", "web_app": {"url": GAME_URL}}
+                ]]
+            }
+            send_telegram_message(chat_id, stats_text, keyboard)
+        
+        elif text == "/leaderboard":
+            db = load_data()
+            
+            if not db["leaderboard"]:
+                send_telegram_message(chat_id, "Таблица лидеров пока пуста. Будьте первым! 🏆")
+                return
+            
+            leader_text = "🏆 *ТОП-10 ИГРОКОВ:*\n\n"
+            for i, entry in enumerate(db["leaderboard"][:10], 1):
+                leader_text += f"{i}. {entry['username']} - Уровень {entry['score']}\n"
+            
+            # Получаем позицию пользователя
+            position = 1
+            user_found = False
+            for entry in db["leaderboard"]:
+                if entry["user_id"] == user_id_str:
+                    user_found = True
+                    break
+                position += 1
+            
+            if user_found:
+                leader_text += f"\nВаше место: #{position}"
             else:
-                print(f"❌ Ошибка Telegram API: {data}")
-        else:
-            print(f"❌ HTTP ошибка: {response.status_code}")
+                leader_text += f"\nВаше место: >10"
             
-    except Exception as e:
-        print(f"❌ Ошибка соединения: {e}")
-    
-    return False
+            keyboard = {
+                "inline_keyboard": [[
+                    {"text": "🎮 ИГРАТЬ", "web_app": {"url": GAME_URL}}
+                ]]
+            }
+            
+            send_telegram_message(chat_id, leader_text, keyboard)
 
-def main():
-    """Основная функция"""
-    print("=" * 60)
-    print("🤖 ЗАПУСК ARROWS PRO ULTRA BOT")
-    print("=" * 60)
-    
-    # Тест соединения
-    if not test_connection():
-        print("⚠️ Проверьте токен бота и интернет соединение")
-        return
-    
-    print(f"🎮 Игра: {GAME_URL}")
-    print(f"🆘 Поддержка: {SUPPORT_BOT}")
-    print("=" * 60)
-    print("⏳ Ожидание сообщений...")
-    print("=" * 60)
-    
-    last_update_id = 0
-    error_count = 0
+def telegram_polling():
+    """Поллинг Telegram бота"""
+    offset = 0
     
     while True:
         try:
-            # Получаем обновления
-            updates = get_updates(last_update_id, timeout=25)
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
+            params = {"offset": offset, "timeout": 30}
             
-            if updates.get("ok"):
-                error_count = 0  # Сброс счетчика ошибок
+            response = requests.get(url, params=params, timeout=35)
+            
+            if response.status_code == 200:
+                data = response.json()
                 
-                for update in updates["result"]:
-                    last_update_id = update["update_id"] + 1
-                    
-                    # Обработка callback
-                    if "callback_query" in update:
-                        handle_callback(update["callback_query"])
-                    
-                    # Обработка сообщений
-                    elif "message" in update:
-                        message = update["message"]
-                        chat_id = message["chat"]["id"]
-                        
-                        if "text" in message:
-                            text = message["text"]
-                            user_name = message["chat"].get("first_name", "Игрок")
-                            
-                            if text == "/start":
-                                print(f"📨 Получен /start от {user_name} ({chat_id})")
-                                
-                                # Пробуем отправить ответ
-                                if handle_start(chat_id, user_name):
-                                    print(f"✅ Ответ отправлен {user_name}")
-                                else:
-                                    print(f"❌ Не удалось отправить ответ {user_name}")
-                            
-                            elif text == "/test":
-                                send_message(chat_id, "✅ Бот работает!")
-                            
-                            elif text.startswith("/"):
-                                send_message(chat_id, f"Команда '{text}' не распознана. Используйте /start")
+                if data.get("result"):
+                    for update in data["result"]:
+                        offset = update["update_id"] + 1
+                        handle_telegram_update(update)
             
-            else:
-                error_count += 1
-                print(f"⚠️ Ошибка получения обновлений #{error_count}")
-                
-                if error_count > 10:
-                    print("🔄 Перезапуск через 30 секунд...")
-                    time.sleep(30)
-                    error_count = 0
-            
-            # Небольшая пауза
             time.sleep(0.1)
             
-        except KeyboardInterrupt:
-            print("\n\n🛑 Бот остановлен пользователем")
-            break
-            
         except Exception as e:
-            error_count += 1
-            print(f"⚠️ Ошибка в основном цикле: {e}")
+            print(f"Ошибка polling: {e}")
             time.sleep(5)
 
-# ====================== ТЕСТОВАЯ ФУНКЦИЯ ======================
-
-def send_test_message():
-    """Отправка тестового сообщения самому себе"""
-    print("\n🧪 Тестовая отправка сообщения...")
-    
-    # Получаем ID бота
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/getMe"
-    response = requests.get(url, timeout=10)
-    
-    if response.status_code == 200:
-        data = response.json()
-        if data.get("ok"):
-            bot_id = data["result"]["id"]
-            
-            # Отправляем сообщение самому себе
-            test_data = {
-                "chat_id": bot_id,
-                "text": "✅ Тестовое сообщение от бота!\n\nЕсли вы это видите, бот работает корректно.",
-                "parse_mode": "Markdown"
-            }
-            
-            result = telegram_api("sendMessage", test_data)
-            if result:
-                print("✅ Тестовое сообщение отправлено!")
-                return True
-    
-    print("❌ Не удалось отправить тестовое сообщение")
-    return False
-
-# ====================== ЗАПУСК ======================
+# Запуск Flask и Telegram бота
+def run_flask():
+    app.run(host='0.0.0.0', port=8080, debug=False)
 
 if __name__ == "__main__":
-    # Проверяем наличие библиотеки requests
-    try:
-        import requests
-        print("✅ Библиотека requests доступна")
-    except ImportError:
-        print("❌ Установите библиотеку: pip install requests")
-        exit(1)
+    print("="*60)
+    print("🤖 ARROWS PRO ULTRA - БОТ СО СТАТИСТИКОЙ")
+    print("="*60)
+    print("🎮 Игра: ", GAME_URL)
+    print("📊 API: http://localhost:8080/api/")
+    print("="*60)
     
-    # Запускаем тест
-    send_test_message()
+    # Создаем файл данных если его нет
+    if not os.path.exists(DATA_FILE):
+        save_data({"users": {}, "leaderboard": [], "shop_items": initialize_shop()})
+        print("✅ Создан файл данных с магазином")
     
-    # Запускаем бота
-    main()
+    # Запускаем Flask в отдельном потоке
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
+    
+    # Даем Flask время на запуск
+    time.sleep(2)
+    
+    # Запускаем Telegram бота
+    print("🚀 Запуск Telegram бота...")
+    telegram_polling()
